@@ -43,10 +43,17 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Существующие БД созданы до перехода на сгенерированный логин (была колонка phone) — переносим.
+-- ВАЖНО: table_schema = 'public' обязателен — без него на Supabase этот EXISTS ловит
+-- служебную auth.users (у неё тоже есть колонка phone), проверка ложно срабатывает
+-- на чужой таблице, а ALTER резолвится через search_path на нашу public.users,
+-- где колонки phone никогда не было -> "column phone does not exist".
 DO $$
 BEGIN
-  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'phone') THEN
-    ALTER TABLE users RENAME COLUMN phone TO login;
+  IF EXISTS (
+    SELECT 1 FROM information_schema.columns
+    WHERE table_schema = 'public' AND table_name = 'users' AND column_name = 'phone'
+  ) THEN
+    ALTER TABLE public.users RENAME COLUMN phone TO login;
   END IF;
 END $$;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255);
