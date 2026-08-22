@@ -9,7 +9,11 @@ const config = {
   db: {
     url: process.env.DATABASE_URL,
     pool: {
-      max: 20,
+      // ВАЖНО: держи ниже лимита клиентов текущего Supabase-пулера (проверено эмпирически —
+      // на session mode :5432 упирается в "max clients reached in session mode, pool_size: 15").
+      // Если DATABASE_URL переведут на transaction-mode pooler (:6543), это ограничение снимается
+      // (там коннекты мультиплексируются, а не держатся по одному на клиента) — тогда max можно поднять.
+      max: parseInt(process.env.DB_POOL_MAX, 10) || 10,
       idleTimeoutMillis: 30_000,
       connectionTimeoutMillis: 10_000,
     },

@@ -4,8 +4,10 @@ const authService = require('../services/AuthService');
 
 class AuthController {
   async register(req, res) {
-    const { full_name, phone, grade } = req.body;
-    const result = await authService.register({ fullName: full_name, phone, grade });
+    const { full_name, grade, parent_name, parent_phone } = req.body;
+    const result = await authService.register({
+      fullName: full_name, grade, parentName: parent_name, parentPhone: parent_phone,
+    });
     res.status(201).json({ success: true, ...result });
   }
 
@@ -15,7 +17,7 @@ class AuthController {
   }
 
   async login(req, res) {
-    const data = await authService.login(req.body.phone, req.body.password);
+    const data = await authService.login(req.body.login, req.body.password);
     res.json({ success: true, data });
   }
 

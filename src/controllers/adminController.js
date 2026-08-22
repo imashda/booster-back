@@ -34,8 +34,10 @@ class AdminController {
   }
 
   async createUser(req, res) {
-    const { full_name, phone, grade } = req.body;
-    const data = await adminService.createUser({ fullName: full_name, phone, grade });
+    const { full_name, grade, parent_name, parent_phone } = req.body;
+    const data = await adminService.createUser({
+      fullName: full_name, grade, parentName: parent_name, parentPhone: parent_phone,
+    });
     res.status(201).json({ success: true, message: 'Пользователь создан', data });
   }
 

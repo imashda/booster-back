@@ -12,9 +12,10 @@ const rejectRegistrationSchema = [
 ];
 
 const createUserSchema = [
-  body('full_name').trim().notEmpty().withMessage('ФИО обязательно'),
-  body('phone').trim().notEmpty().withMessage('Телефон обязателен'),
+  body('full_name').trim().notEmpty().withMessage('ФИО ребёнка обязательно'),
   body('grade').trim().notEmpty().withMessage('Класс обязателен'),
+  body('parent_name').trim().notEmpty().withMessage('Имя родителя обязательно'),
+  body('parent_phone').trim().notEmpty().isMobilePhone().withMessage('Неверный номер телефона родителя'),
 ];
 
 const updateUserStatusSchema = [

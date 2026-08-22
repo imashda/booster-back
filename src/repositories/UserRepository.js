@@ -5,36 +5,36 @@ const db = require('../config/database');
 class UserRepository {
   async findById(id) {
     const { rows } = await db.query(
-      `SELECT id, phone, full_name, grade, role, status, foxes, exp, level
+      `SELECT id, login, full_name, grade, role, status, foxes, exp, level
        FROM users WHERE id = $1`,
       [id]
     );
     return rows[0] ?? null;
   }
 
-  async findByPhone(phone) {
+  async findByLogin(login) {
     const { rows } = await db.query(
-      `SELECT id, phone, password_hash, full_name, grade, role, status, foxes, exp, level, avatar_url
-       FROM users WHERE phone = $1`,
-      [phone]
+      `SELECT id, login, password_hash, full_name, grade, role, status, foxes, exp, level, avatar_url
+       FROM users WHERE login = $1`,
+      [login]
     );
     return rows[0] ?? null;
   }
 
   // client defaults to the pool wrapper (same .query(text, params) interface as a transaction
   // client) — pass an explicit transaction client when this must commit atomically with other writes.
-  async create({ id, phone, passwordHash, fullName, grade }, client = db) {
+  async create({ id, login, passwordHash, fullName, grade, parentName, parentPhone }, client = db) {
     const { rows } = await client.query(
-      `INSERT INTO users (id, phone, password_hash, full_name, grade, role, status)
-       VALUES ($1, $2, $3, $4, $5, 'student', 'active') RETURNING id`,
-      [id, phone, passwordHash, fullName, grade]
+      `INSERT INTO users (id, login, password_hash, full_name, grade, parent_name, parent_phone, role, status)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, 'student', 'active') RETURNING id`,
+      [id, login, passwordHash, fullName, grade, parentName ?? null, parentPhone ?? null]
     );
     return rows[0];
   }
 
   async findProfile(id) {
     const { rows } = await db.query(
-      `SELECT u.id, u.phone, u.full_name, u.grade, u.foxes, u.exp, u.level,
+      `SELECT u.id, u.login, u.full_name, u.grade, u.foxes, u.exp, u.level,
               u.avatar_url, u.created_at, u.last_login_at,
               hl.name AS house_name, hl.image_url AS house_image_url,
               hl2.exp_required AS next_level_exp,
@@ -100,7 +100,7 @@ class UserRepository {
 
     if (search) {
       params.push(`%${search}%`);
-      where += ` AND (full_name ILIKE $${params.length} OR phone ILIKE $${params.length})`;
+      where += ` AND (full_name ILIKE $${params.length} OR login ILIKE $${params.length} OR parent_phone ILIKE $${params.length})`;
     }
     if (status) { params.push(status); where += ` AND status = $${params.length}`; }
     if (role)   { params.push(role);   where += ` AND role   = $${params.length}`; }
@@ -112,7 +112,8 @@ class UserRepository {
 
     const listParams = [...params, limit, offset];
     const { rows } = await db.query(
-      `SELECT id, phone, full_name, grade, role, status, foxes, exp, level, created_at, last_login_at
+      `SELECT id, login, full_name, grade, role, status, foxes, exp, level,
+              parent_name, parent_phone, created_at, last_login_at
        FROM users ${where}
        ORDER BY created_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
       listParams
@@ -124,7 +125,7 @@ class UserRepository {
   async updateStatus(id, status) {
     const { rows } = await db.query(
       `UPDATE users SET status = $1, updated_at = NOW()
-       WHERE id = $2 RETURNING id, phone, full_name, status`,
+       WHERE id = $2 RETURNING id, login, full_name, status`,
       [status, id]
     );
     return rows[0] ?? null;

@@ -8,7 +8,7 @@ const tokenRepo = require('../repositories/TokenRepository');
 const walletRepo = require('../repositories/WalletRepository');
 const walletService = require('./WalletService');
 const authService = require('./AuthService');
-const { NotFoundError, ConflictError, BadRequestError } = require('../domain/errors');
+const { NotFoundError, BadRequestError } = require('../domain/errors');
 const { REGISTRATION_STATUSES, TRANSACTION_TYPES } = require('../constants');
 
 class AdminService {
@@ -43,9 +43,7 @@ class AdminService {
       throw new BadRequestError(`Заявка уже ${request.status}`);
     }
 
-    const existingUser = await userRepo.findByPhone(request.phone);
-    if (existingUser) throw new ConflictError('Пользователь с таким номером уже существует');
-
+    const login = await authService.generateUniqueLogin();
     const rawPassword = authService.generatePassword();
     const passwordHash = await authService.hashPassword(rawPassword);
     const newUserId = uuidv4();
@@ -57,10 +55,12 @@ class AdminService {
       await client.query('BEGIN');
       await userRepo.create({
         id: newUserId,
-        phone: request.phone,
+        login,
         passwordHash,
         fullName: request.full_name,
         grade: request.grade,
+        parentName: request.parent_name,
+        parentPhone: request.parent_phone,
       }, client);
       await registrationRepo.approve(requestId, adminId, client);
       await client.query('COMMIT');
@@ -71,12 +71,14 @@ class AdminService {
       client.release();
     }
 
-    // Логин (phone) и пароль отдаются куратору в ответе — он пересылает их ученику сам
-    // (WhatsApp-автоотправки нет).
+    // Логин и пароль отдаются куратору в ответе вместе с контактом родителя — он пересылает
+    // их на WhatsApp родителя сам (автоотправки нет).
     return {
       userId: newUserId,
-      phone: request.phone,
+      login,
       rawPassword,
+      parentName: request.parent_name,
+      parentPhone: request.parent_phone,
     };
   }
 
@@ -98,18 +100,21 @@ class AdminService {
     });
   }
 
-  async createUser({ fullName, phone, grade }) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const existing = await userRepo.findByPhone(normalizedPhone);
-    if (existing) throw new ConflictError('Номер уже зарегистрирован');
-
+  // Прямое создание пользователя админом, минуя очередь заявок — например, для тестовых
+  // аккаунтов. Логин генерируется так же, как при апруве заявки.
+  async createUser({ fullName, grade, parentName, parentPhone }) {
+    const normalizedParentPhone = parentPhone.replace(/\D/g, '');
+    const login = await authService.generateUniqueLogin();
     const rawPassword = authService.generatePassword();
     const passwordHash = await authService.hashPassword(rawPassword);
     const newUserId = uuidv4();
 
-    await userRepo.create({ id: newUserId, phone: normalizedPhone, passwordHash, fullName, grade });
+    await userRepo.create({
+      id: newUserId, login, passwordHash, fullName, grade,
+      parentName, parentPhone: normalizedParentPhone,
+    });
 
-    return { userId: newUserId, phone: normalizedPhone, rawPassword };
+    return { userId: newUserId, login, rawPassword, parentName, parentPhone: normalizedParentPhone };
   }
 
   async updateUserStatus(userId, status) {
@@ -146,7 +151,7 @@ class AdminService {
       tokenRepo.deleteByUserId(userId),
     ]);
 
-    return { phone: user.phone, rawPassword };
+    return { login: user.login, rawPassword };
   }
 
   async setHouseLevelPrice(level, priceFoxes) {

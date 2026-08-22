@@ -12,11 +12,11 @@ async function seed() {
     // ── Admin user ──────────────────────────────────────────
     const adminPasswordHash = await bcrypt.hash('Admin2025!', 12);
     await client.query(`
-      INSERT INTO users (id, phone, password_hash, full_name, grade, role, status, foxes, exp, level)
+      INSERT INTO users (id, login, password_hash, full_name, grade, role, status, foxes, exp, level)
       VALUES ($1, '77000000000', $2, 'Администратор', 'admin', 'admin', 'active', 0, 0, 1)
-      ON CONFLICT (phone) DO NOTHING
+      ON CONFLICT (login) DO NOTHING
     `, [uuidv4(), adminPasswordHash]);
-    console.log('✅ Admin user created (phone: 77000000000, pass: Admin2025!)');
+    console.log('✅ Admin user created (login: 77000000000, pass: Admin2025!)');
 
     // ── Skin Categories ─────────────────────────────────────
     const skinCategories = [
@@ -36,19 +36,20 @@ async function seed() {
 
     // ── Mini Games ──────────────────────────────────────────
     // 10 FOX за игру, лимит 100 FOX/день (DAILY_GAMES_FOX_LIMIT) = максимум 10 засчитанных игр в день.
+    // 'runner' помечен is_active=false — в интерфейсе он показан как "Скоро", ещё не готов.
     const games = [
-      { slug: 'fox-collector',   name: 'Сбор Фоксов',         fox: 10, exp: 15 },
-      { slug: 'office-escape',   name: 'Побег из офиса',       fox: 10, exp: 10 },
-      { slug: 'rooftop-race',    name: 'Гонка по крышам',      fox: 10, exp: 10 },
-      { slug: 'fox-puzzle',      name: 'Пазл с Фоксом',        fox: 10, exp: 10 },
-      { slug: 'fox-maze',        name: 'Лабиринт для лис',     fox: 10, exp: 10 },
-      { slug: 'artifact-hunt',   name: 'Охота за артефактом',  fox: 10, exp: 10 },
+      { slug: 'maze',        name: 'Лабиринт',   fox: 10, exp: 10, active: true },
+      { slug: 'memory',      name: 'Память',      fox: 10, exp: 10, active: true },
+      { slug: 'math-sprint', name: 'Матеспринт',  fox: 10, exp: 10, active: true },
+      { slug: '2048',        name: '2048',        fox: 10, exp: 10, active: true },
+      { slug: 'puzzle',      name: 'Пазл',        fox: 10, exp: 10, active: true },
+      { slug: 'runner',      name: 'Забег',       fox: 10, exp: 10, active: false },
     ];
     for (const g of games) {
       await client.query(`
         INSERT INTO mini_games (id, slug, name, fox_reward, exp_reward, is_active)
-        VALUES ($1, $2, $3, $4, $5, true) ON CONFLICT (slug) DO NOTHING
-      `, [uuidv4(), g.slug, g.name, g.fox, g.exp]);
+        VALUES ($1, $2, $3, $4, $5, $6) ON CONFLICT (slug) DO NOTHING
+      `, [uuidv4(), g.slug, g.name, g.fox, g.exp, g.active]);
     }
     console.log('✅ Mini games seeded');
 
@@ -145,7 +146,7 @@ async function seed() {
     await client.query('COMMIT');
     console.log('\n🎉 Seed completed!');
     console.log('─────────────────────────────────');
-    console.log('Admin: phone=77000000000, pass=Admin2025!');
+    console.log('Admin: login=77000000000, pass=Admin2025!');
     console.log('─────────────────────────────────');
   } catch (err) {
     await client.query('ROLLBACK');

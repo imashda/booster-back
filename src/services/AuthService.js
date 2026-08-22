@@ -18,8 +18,12 @@ const {
 const { USER_STATUSES, REGISTRATION_STATUSES, TRANSACTION_TYPES } = require('../constants');
 
 const BCRYPT_ROUNDS = 12;
+const LOGIN_GENERATION_ATTEMPTS = 5;
 
 const generatePassword = () => crypto.randomBytes(4).toString('hex').toUpperCase();
+
+// 8-значное число — визуально не похоже на пароль (hex), легко читать/диктовать по WhatsApp.
+const generateLoginCandidate = () => String(crypto.randomInt(10_000_000, 100_000_000));
 
 const hashToken = (token) => crypto.createHash('sha256').update(token).digest('hex');
 
@@ -38,21 +42,18 @@ const generateTokenPair = (userId, role) => {
 };
 
 class AuthService {
-  async register({ fullName, phone, grade }) {
-    const normalizedPhone = phone.replace(/\D/g, '');
+  async register({ fullName, grade, parentName, parentPhone }) {
+    const normalizedParentPhone = parentPhone.replace(/\D/g, '');
 
-    const existingUser = await userRepo.findByPhone(normalizedPhone);
-    if (existingUser) {
-      throw new ConflictError('Номер телефона уже зарегистрирован');
-    }
-
-    const latestRequest = await registrationRepo.findLatestByPhone(normalizedPhone);
-    if (latestRequest?.status === REGISTRATION_STATUSES.PENDING) {
-      throw new ConflictError('Заявка уже отправлена. Ожидайте подтверждения.');
+    // Дедуп по (телефон родителя + ФИО ребёнка), не по одному телефону — у родителя может
+    // быть несколько детей, каждый со своей заявкой.
+    const latestRequest = await registrationRepo.findLatestPendingForChild(normalizedParentPhone, fullName);
+    if (latestRequest) {
+      throw new ConflictError('Заявка на этого ученика уже отправлена. Ожидайте подтверждения.');
     }
 
     const id = uuidv4();
-    await registrationRepo.create({ id, fullName, phone: normalizedPhone, grade });
+    await registrationRepo.create({ id, fullName, grade, parentName, parentPhone: normalizedParentPhone });
 
     return {
       message: 'Заявка отправлена. Администратор рассмотрит её и передаст логин и пароль куратору.',
@@ -69,9 +70,8 @@ class AuthService {
     };
   }
 
-  async login(phone, password) {
-    const normalizedPhone = phone.replace(/\D/g, '');
-    const user = await userRepo.findByPhone(normalizedPhone);
+  async login(login, password) {
+    const user = await userRepo.findByLogin(login.trim());
 
     if (!user) throw new UnauthorizedError('Неверный логин или пароль');
 
@@ -156,6 +156,18 @@ class AuthService {
 
   generatePassword() {
     return generatePassword();
+  }
+
+  // Ретраит на случай коллизии со сгенерированным ранее логином (UNIQUE на users.login) —
+  // с 8-значным числом коллизия почти невозможна, но проверяем явно, а не полагаемся только
+  // на то, что INSERT упадёт с 23505.
+  async generateUniqueLogin() {
+    for (let attempt = 0; attempt < LOGIN_GENERATION_ATTEMPTS; attempt++) {
+      const candidate = generateLoginCandidate();
+      const existing = await userRepo.findByLogin(candidate);
+      if (!existing) return candidate;
+    }
+    throw new Error('Не удалось сгенерировать уникальный логин');
   }
 
   async hashPassword(password) {

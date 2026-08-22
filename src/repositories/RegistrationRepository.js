@@ -17,19 +17,23 @@ class RegistrationRepository {
     return rows[0] ?? null;
   }
 
-  async findLatestByPhone(phone) {
+  // Анти-спам дедуп по (телефон родителя + ФИО ребёнка) — не по одному телефону, т.к. у одного
+  // родителя может быть несколько детей, каждый со своей заявкой.
+  async findLatestPendingForChild(parentPhone, fullName) {
     const { rows } = await db.query(
       `SELECT id, status FROM registration_requests
-       WHERE phone = $1 ORDER BY created_at DESC LIMIT 1`,
-      [phone]
+       WHERE parent_phone = $1 AND full_name = $2 AND status = 'pending'
+       ORDER BY created_at DESC LIMIT 1`,
+      [parentPhone, fullName]
     );
     return rows[0] ?? null;
   }
 
-  async create({ id, fullName, phone, grade }) {
+  async create({ id, fullName, grade, parentName, parentPhone }) {
     await db.query(
-      'INSERT INTO registration_requests (id, full_name, phone, grade) VALUES ($1, $2, $3, $4)',
-      [id, fullName, phone, grade]
+      `INSERT INTO registration_requests (id, full_name, grade, parent_name, parent_phone)
+       VALUES ($1, $2, $3, $4, $5)`,
+      [id, fullName, grade, parentName, parentPhone]
     );
   }
 

@@ -16,19 +16,23 @@ CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 -- ============================================================
 CREATE TABLE IF NOT EXISTS users (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  phone         VARCHAR(20)  UNIQUE NOT NULL,
+  login         VARCHAR(20)  UNIQUE NOT NULL, -- сгенерированный логин (НЕ телефон — у детей своего телефона нет)
   password_hash VARCHAR(255) NOT NULL,
-  full_name     VARCHAR(255) NOT NULL,
+  full_name     VARCHAR(255) NOT NULL,        -- ФИО ребёнка
   grade         VARCHAR(20)  NOT NULL,        -- класс: "10A", "11B" и т.д.
   role          VARCHAR(20)  NOT NULL DEFAULT 'student', -- 'student' | 'admin'
   status        VARCHAR(20)  NOT NULL DEFAULT 'pending', -- 'pending' | 'active' | 'blocked'
   avatar_url    TEXT,
-  
+
+  -- Контакты родителя — куда куратор пересылает логин/пароль
+  parent_name   VARCHAR(255),
+  parent_phone  VARCHAR(20),
+
   -- Gamification
   foxes         INTEGER NOT NULL DEFAULT 0,   -- валюта FOX
   exp           INTEGER NOT NULL DEFAULT 0,   -- опыт (для лидерборда и уровней дома)
   level         INTEGER NOT NULL DEFAULT 1,   -- уровень дома (1–50)
-  
+
   -- Alpha CRM (не используется приложением — интеграция отключена, foxes заводятся в БД напрямую)
   alpha_crm_id  VARCHAR(100),
 
@@ -38,7 +42,17 @@ CREATE TABLE IF NOT EXISTS users (
   last_login_at TIMESTAMPTZ
 );
 
-CREATE INDEX IF NOT EXISTS idx_users_phone ON users(phone);
+-- Существующие БД созданы до перехода на сгенерированный логин (была колонка phone) — переносим.
+DO $$
+BEGIN
+  IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'phone') THEN
+    ALTER TABLE users RENAME COLUMN phone TO login;
+  END IF;
+END $$;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255);
+ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(20);
+
+CREATE INDEX IF NOT EXISTS idx_users_login ON users(login);
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 CREATE INDEX IF NOT EXISTS idx_users_exp ON users(exp DESC);
 
@@ -47,9 +61,11 @@ CREATE INDEX IF NOT EXISTS idx_users_exp ON users(exp DESC);
 -- ============================================================
 CREATE TABLE IF NOT EXISTS registration_requests (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  full_name     VARCHAR(255) NOT NULL,
-  phone         VARCHAR(20)  NOT NULL,
+  full_name     VARCHAR(255) NOT NULL,  -- ФИО ребёнка
   grade         VARCHAR(20)  NOT NULL,
+  parent_name   VARCHAR(255),
+  parent_phone  VARCHAR(20),
+  phone         VARCHAR(20),  -- legacy-поле, новым кодом не заполняется
   status        VARCHAR(20)  NOT NULL DEFAULT 'pending', -- 'pending' | 'approved' | 'rejected'
   reviewed_by   UUID REFERENCES users(id),
   reviewed_at   TIMESTAMPTZ,
@@ -57,8 +73,12 @@ CREATE TABLE IF NOT EXISTS registration_requests (
   created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255);
+ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(20);
+ALTER TABLE registration_requests ALTER COLUMN phone DROP NOT NULL;
+
 CREATE INDEX IF NOT EXISTS idx_reg_requests_status ON registration_requests(status);
-CREATE INDEX IF NOT EXISTS idx_reg_requests_phone ON registration_requests(phone);
+CREATE INDEX IF NOT EXISTS idx_reg_requests_parent_phone ON registration_requests(parent_phone);
 
 -- ============================================================
 -- REFRESH TOKENS

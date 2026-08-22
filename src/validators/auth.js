@@ -3,9 +3,10 @@
 const { body, param } = require('express-validator');
 
 const registerSchema = [
-  body('full_name').trim().notEmpty().withMessage('ФИО обязательно'),
-  body('phone').trim().notEmpty().isMobilePhone().withMessage('Неверный номер телефона'),
-  body('grade').trim().notEmpty().withMessage('Класс обязателен'),
+  body('full_name').trim().notEmpty().withMessage('ФИО ребёнка обязательно'),
+  body('grade').trim().notEmpty().withMessage('Класс обучения обязателен'),
+  body('parent_name').trim().notEmpty().withMessage('Имя родителя обязательно'),
+  body('parent_phone').trim().notEmpty().isMobilePhone().withMessage('Неверный номер телефона родителя'),
 ];
 
 const registrationStatusSchema = [
@@ -13,7 +14,7 @@ const registrationStatusSchema = [
 ];
 
 const loginSchema = [
-  body('phone').trim().notEmpty().withMessage('Телефон обязателен'),
+  body('login').trim().notEmpty().withMessage('Логин обязателен'),
   body('password').notEmpty().withMessage('Пароль обязателен'),
 ];
 
