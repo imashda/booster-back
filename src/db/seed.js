@@ -34,6 +34,37 @@ async function seed() {
     }
     console.log('✅ Skin categories seeded');
 
+    // ── Skins ───────────────────────────────────────────────
+    // Один бесплатный скин на слот (level_req 1, price 0) — как раньше был
+    // бесплатный "Базовый" сет в моке, плюс несколько платных на пробу.
+    const { rows: catRows } = await client.query('SELECT id, slug FROM skin_categories');
+    const catIdBySlug = Object.fromEntries(catRows.map((r) => [r.slug, r.id]));
+    const skins = [
+      { cat: 'top', name: 'Базовая футболка', price: 0, levelReq: 1, exp: 0 },
+      { cat: 'top', name: 'Кожаная куртка', price: 500, levelReq: 3, exp: 0 },
+      { cat: 'top', name: 'Худи', price: 300, levelReq: 2, exp: 0 },
+      { cat: 'pants', name: 'Базовые джинсы', price: 0, levelReq: 1, exp: 0 },
+      { cat: 'pants', name: 'Спортивные штаны', price: 250, levelReq: 2, exp: 0 },
+      { cat: 'shoes', name: 'Базовые кроссовки', price: 0, levelReq: 1, exp: 0 },
+      { cat: 'shoes', name: 'Кроссовки Air', price: 400, levelReq: 3, exp: 0 },
+      { cat: 'accessories', name: 'Солнечные очки', price: 300, levelReq: 2, exp: 0 },
+      { cat: 'accessories', name: 'Наушники', price: 500, levelReq: 4, exp: 0 },
+      { cat: 'headwear', name: 'Кепка', price: 350, levelReq: 2, exp: 0 },
+      { cat: 'headwear', name: 'Корона', price: 1000, levelReq: 5, exp: 300 },
+    ];
+    const { rows: [{ count: existingSkins }] } = await client.query('SELECT COUNT(*) FROM skins');
+    if (Number(existingSkins) === 0) {
+      for (const sk of skins) {
+        await client.query(`
+          INSERT INTO skins (id, category_id, name, price_foxes, level_req, exp_bonus)
+          VALUES ($1, $2, $3, $4, $5, $6)
+        `, [uuidv4(), catIdBySlug[sk.cat], sk.name, sk.price, sk.levelReq, sk.exp]);
+      }
+      console.log('✅ Skins seeded');
+    } else {
+      console.log('↷ Skins already present, skipped');
+    }
+
     // ── Mini Games ──────────────────────────────────────────
     // 10 FOX за игру, лимит 100 FOX/день (DAILY_GAMES_FOX_LIMIT) = максимум 10 засчитанных игр в день.
     // 'runner' помечен is_active=false — в интерфейсе он показан как "Скоро", ещё не готов.
