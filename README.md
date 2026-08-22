@@ -26,14 +26,17 @@ npm run dev                 # http://localhost:3000, автоперезапус�
 | `JWT_SECRET` | да | Секрет для access-токенов. Генерировать: `node -e "console.log(require('crypto').randomBytes(48).toString('base64url'))"`. |
 | `ADMIN_SECRET_KEY` | да | Секрет для создания первого админа. |
 | `REFRESH_TOKEN_SECRET` | нет (fallback → `JWT_SECRET`) | Отдельный секрет для refresh-токенов — рекомендуется задавать отдельно. |
-| `JWT_EXPIRES_IN` | нет (`7d`) | TTL access-токена. |
+| `JWT_EXPIRES_IN` | нет (`30d`) | TTL access-токена. Намеренно долгий — дети не помнят пароли и приложение может не успевать сделать silent-refresh вовремя, поэтому сессия живёт долго сама по себе. |
 | `REFRESH_TOKEN_EXPIRES_IN` | нет (`30d`) | TTL refresh-токена. |
 | `PORT` | нет (`3000`) | Порт HTTP-сервера. |
-| `NODE_ENV` | нет (`development`) | В `development` WhatsApp-сообщения только логируются, не отправляются. |
+| `NODE_ENV` | нет (`development`) | Режим окружения. |
 | `ALLOWED_ORIGINS` | нет | CSV доменов фронтенда. **В `production` без этой переменной CORS блокирует все запросы** — обязательно задать перед деплоем. |
-| `WHATSAPP_INSTANCE_ID`, `WHATSAPP_API_TOKEN` | нет | UltraMsg — отправка логина/пароля и уведомлений. Без них в проде отправка молча падает (лог `WhatsApp send failed`). |
-| `DAILY_QUIZ_FOX_REWARD` | нет (`100`) | FOX за верный ответ дня. |
-| `DAILY_GAMES_FOX_LIMIT` | нет (`100`) | Дневной лимит FOX за мини-игры. |
+| `ENTRY_BONUS_FOX` | нет (`200`) | Разовый FOX-бонус при первом входе в приложение (см. `POST /api/auth/login`). |
+| `QUIZ_CORRECT_FOX_REWARD` | нет (`20`) | FOX за верный ответ одного вопроса квиза дня. При 5 вопросах/день — максимум 100 FOX/день с квиза. |
+| `QUIZ_WRONG_FOX_REWARD` | нет (`0`) | FOX за неверный ответ. |
+| `QUIZ_CORRECT_EXP_REWARD` | нет (`50`) | EXP за верный ответ одного вопроса. |
+| `QUIZ_WRONG_EXP_REWARD` | нет (`10`) | EXP за неверный ответ. |
+| `DAILY_GAMES_FOX_LIMIT` | нет (`100`) | Дневной лимит FOX за мини-игры (при 10 FOX/игру — максимум 10 засчитанных игр в день). |
 
 ---
 
@@ -43,7 +46,7 @@ npm run dev                 # http://localhost:3000, автоперезапус�
 Authorization: Bearer <accessToken>
 ```
 
-- **Access token** — 7 дней (`JWT_EXPIRES_IN`), кладётся в заголовок каждого защищённого запроса.
+- **Access token** — 30 дней (`JWT_EXPIRES_IN`), кладётся в заголовок каждого защищённого запроса.
 - **Refresh token** — 30 дней (`REFRESH_TOKEN_EXPIRES_IN`), хранится на клиенте отдельно, используется только для `/api/auth/refresh`. Ротируется на каждый refresh (старый инвалидируется).
 - Роуты помечены 🔒 — требуют `Authorization`; 🔒👑 — требуют ещё и роль `admin` (`status: active`, `role: admin`).
 - Просроченный access-токен вернёт `401` с `code: "TOKEN_EXPIRED"` — по этому коду фронт должен молча дёрнуть `/api/auth/refresh` и повторить запрос.
@@ -102,7 +105,7 @@ Body:
 ```json
 {
   "success": true,
-  "message": "Заявка отправлена. Администратор рассмотрит её и вышлет пароль на WhatsApp.",
+  "message": "Заявка отправлена. Администратор рассмотрит её и передаст логин и пароль куратору.",
   "requestId": "5e2a1e0a-1b1a-4c9e-9f0a-3a0f6c1e2b10"
 }
 ```
@@ -111,7 +114,7 @@ Body:
 ---
 
 ### `GET /api/auth/registration-status/:id`
-Публичный (без токена) опрос статуса заявки — для экрана ожидания «одобрили меня?». `:id` — это `requestId` из ответа `POST /api/auth/register`. Пароль сюда не приходит (он уходит в WhatsApp при одобрении) — этот эндпоинт только сигнализирует, что можно переходить на экран входа.
+Публичный (без токена) опрос статуса заявки — для экрана ожидания «одобрили меня?». `:id` — это `requestId` из ответа `POST /api/auth/register`. Пароль сюда не приходит — логин и пароль куратор получает в ответе `POST /api/admin/registrations/:id/approve` и передаёт ученику сам (автоотправки нет).
 
 200:
 ```json
@@ -124,6 +127,8 @@ Body:
 ---
 
 ### `POST /api/auth/login`
+При самом первом входе пользователя (у него ещё нет `last_login_at`) автоматически начисляется разовый бонус `ENTRY_BONUS_FOX` (по умолчанию 200 FOX) — `foxes` в ответе уже учитывает этот бонус. При всех последующих входах ничего не начисляется.
+
 Body:
 ```json
 { "phone": "77001234567", "password": "Admin2025!" }
@@ -344,7 +349,7 @@ Query: `type` — один из `quiz|game|shop_purchase|skin_purchase|admin_gra
         "answered": true,
         "userAnswer": "a",
         "isCorrect": true,
-        "foxesEarned": 100,
+        "foxesEarned": 20,
         "expEarned": 50
       },
       {
@@ -382,7 +387,7 @@ Body:
     "questionId": "q1...",
     "isCorrect": true,
     "correctAnswer": "a",
-    "foxesEarned": 100,
+    "foxesEarned": 20,
     "expEarned": 50,
     "newFoxesBalance": 1340,
     "newExp": 3250,
@@ -394,6 +399,8 @@ Body:
   }
 }
 ```
+> При неверном ответе `foxesEarned: 0` по умолчанию (`QUIZ_WRONG_FOX_REWARD`) — в этом случае `newFoxesBalance` в ответе будет `null`/отсутствовать (баланс FOX не менялся), а `newExp`/`newLevel` всё равно приходят, т.к. EXP за неверный ответ начисляется.
+
 Ошибки: `409` — на этот вопрос уже отвечено; `404` — вопрос не входит в квиз сегодняшнего дня; `422` — неверный `question_id`/`answer`.
 
 ---
@@ -414,7 +421,7 @@ Body:
         "description": null,
         "icon_url": null,
         "is_active": true,
-        "fox_reward": 30,
+        "fox_reward": 10,
         "exp_reward": 15,
         "created_at": "2026-01-10T08:00:00.000Z"
       }
@@ -425,6 +432,7 @@ Body:
   }
 }
 ```
+> `fox_reward` одинаков (10) у всех мини-игр по умолчанию — при лимите 100 FOX/день это ровно 10 засчитанных игр в день, дальше играть можно, но FOX не начисляется.
 
 ### `POST /api/games/result`
 Body:
@@ -441,7 +449,7 @@ Body:
 {
   "success": true,
   "data": {
-    "foxesEarned": 30,
+    "foxesEarned": 10,
     "expEarned": 15,
     "limitReached": false,
     "newFoxesBalance": 1370,
@@ -691,16 +699,16 @@ Body:
 ```
 
 ### `POST /api/admin/registrations/:id/approve`
-Создаёт пользователя, генерирует пароль, отправляет его на WhatsApp.
+Создаёт пользователя и генерирует пароль. Автоотправки логина/пароля никуда нет — они возвращаются прямо в ответе, куратор передаёт их ученику сам (WhatsApp вручную, любым другим способом).
 200:
 ```json
 {
   "success": true,
   "message": "Заявка одобрена, пользователь создан",
-  "data": { "userId": "u9...", "phone": "77009998877", "rawPassword": "A1B2C3D4", "whatsappSent": true }
+  "data": { "userId": "u9...", "phone": "77009998877", "rawPassword": "A1B2C3D4" }
 }
 ```
-Ошибки: `404` — заявка не найдена; `400` — уже обработана; `409` — телефон уже занят другим пользователем.
+`phone` здесь — это логин для входа (`POST /api/auth/login`). Ошибки: `404` — заявка не найдена; `400` — уже обработана; `409` — телефон уже занят другим пользователем.
 
 ### `POST /api/admin/registrations/:id/reject`
 Body (опционально):
@@ -729,7 +737,7 @@ Body (опционально):
 ```
 
 ### `POST /api/admin/users`
-Создать пользователя напрямую (минуя заявку), пароль генерируется и уходит на WhatsApp.
+Создать пользователя напрямую (минуя заявку). Пароль генерируется и возвращается в ответе — куратор передаёт его ученику сам.
 Body:
 ```json
 { "full_name": "Новый Студент", "phone": "77005554433", "grade": "11A" }
@@ -739,7 +747,7 @@ Body:
 {
   "success": true,
   "message": "Пользователь создан",
-  "data": { "userId": "u10...", "phone": "77005554433", "rawPassword": "F3E2D1C0", "whatsappSent": true }
+  "data": { "userId": "u10...", "phone": "77005554433", "rawPassword": "F3E2D1C0" }
 }
 ```
 Ошибки: `409` — телефон уже занят.
@@ -783,9 +791,10 @@ Body:
 ```
 
 ### `POST /api/admin/users/:id/reset-password`
+Генерирует новый пароль и разлогинивает все устройства пользователя (удаляет все refresh-токены). Пароль возвращается в ответе — куратор передаёт его ученику сам.
 200:
 ```json
-{ "success": true, "message": "Пароль сброшен и отправлен на WhatsApp", "data": { "rawPassword": "G7H8I9J0", "whatsappSent": true } }
+{ "success": true, "message": "Пароль сброшен", "data": { "phone": "77001234567", "rawPassword": "G7H8I9J0" } }
 ```
 
 ### `GET /api/admin/quiz/questions?category=&limit=20&offset=0`
@@ -902,18 +911,18 @@ Body:
 
 | Действие | FOX | EXP |
 |----------|-----|-----|
-| Daily Quiz — 1 вопрос, верный ответ | +100 (`DAILY_QUIZ_FOX_REWARD`) | +50 |
-| Daily Quiz — 1 вопрос, неверный ответ | +10 | +10 |
-| Мини-игра «Сбор Фоксов» | +30 | +15 |
-| Остальные мини-игры | +20 | +10 |
-| **Дневной лимит FOX за игры** | **100** (`DAILY_GAMES_FOX_LIMIT`) | ∞ |
+| Первый вход в приложение (разово) | +200 (`ENTRY_BONUS_FOX`) | — |
+| Daily Quiz — 1 вопрос, верный ответ | +20 (`QUIZ_CORRECT_FOX_REWARD`) | +50 |
+| Daily Quiz — 1 вопрос, неверный ответ | +0 (`QUIZ_WRONG_FOX_REWARD`) | +10 |
+| Мини-игра (любая, за одну засчитанную игру) | +10 | зависит от игры (`mini_games.exp_reward`) |
+| **Дневной лимит FOX за игры** | **100** (`DAILY_GAMES_FOX_LIMIT`) — т.е. максимум 10 засчитанных игр в день | ∞ |
 
-> Квиз дня — до 5 вопросов, награда начисляется за **каждый** отдельно (не только за первый) — то есть за полностью пройденный квиз с верными ответами можно получить до 500 FOX / 250 EXP в день. Это отдельно от лимита FOX за мини-игры. Суммы регулируются через `DAILY_QUIZ_FOX_REWARD`/`quizWrongFoxReward`/`quizCorrectExpReward`/`quizWrongExpReward` — если 500 FOX/день за квиз многовато для экономики, уменьшите `DAILY_QUIZ_FOX_REWARD` в `.env`.
+> Квиз дня — до 5 вопросов, награда начисляется за **каждый** отдельно — при 5 верных ответах в день выходит максимум 100 FOX / 250 EXP. Это отдельно от лимита FOX за мини-игры. Суммы регулируются через `QUIZ_CORRECT_FOX_REWARD`/`QUIZ_WRONG_FOX_REWARD`/`QUIZ_CORRECT_EXP_REWARD`/`QUIZ_WRONG_EXP_REWARD` в `.env`.
 
 - Уровни домов 1–50 растут по EXP (см. `GET /api/house-levels`); следующий уровень (только следующий, без пропусков) можно докупить за FOX через `POST /api/house-levels/buy-next`, если админ задал ему цену (`PATCH /api/admin/house-levels/:level/price`) — по умолчанию у всех уровней цены нет, только через EXP.
 - Некоторые скины дают разовый EXP-бонус при покупке (`exp_bonus` в `GET /api/skins`) — например, «+3 к уровню» в макете реализовано как эквивалентное количество EXP, а не прямая установка уровня, чтобы прогресс не расходился с формулой уровней.
 - Лидерборд — топ-100 по EXP, сбрасывается 1-го числа месяца (снапшот сохраняется).
-- WhatsApp (UltraMsg) — уведомления при одобрении/отклонении заявки и заказе из магазина; в `development` только логируются.
+- Автоотправки логина/пароля никуда нет (не WhatsApp, не email) — они возвращаются в ответе админских эндпоинтов (`approve`, `POST /api/admin/users`, `reset-password`), куратор передаёт их ученику вручную.
 
 ---
 

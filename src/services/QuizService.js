@@ -63,7 +63,8 @@ class QuizService {
     if (existingAnswer) throw new ConflictError('Вы уже ответили на этот вопрос');
 
     const isCorrect = answer.toLowerCase() === question.correct;
-    const foxesEarned = isCorrect ? config.game.dailyQuizFoxReward : config.game.quizWrongFoxReward;
+    // 5 вопросов/день × quizCorrectFoxReward (20 по умолчанию) = максимум 100 FOX за квиз дня.
+    const foxesEarned = isCorrect ? config.game.quizCorrectFoxReward : config.game.quizWrongFoxReward;
     const expEarned = isCorrect ? config.game.quizCorrectExpReward : config.game.quizWrongExpReward;
     const description = `Daily Quiz ${today} — ${isCorrect ? 'верный' : 'неверный'} ответ`;
 
@@ -73,7 +74,7 @@ class QuizService {
     // так что при сбое между записью ответа и начислением награды пользователь не смог бы повторить
     // попытку и терял бы награду безвозвратно.
     const client = await getClient();
-    let foxResult;
+    let foxResult = null;
     let expResult;
     try {
       await client.query('BEGIN');
@@ -89,9 +90,11 @@ class QuizService {
         expEarned,
       });
 
-      foxResult = await walletService.changeFoxes(
-        userId, foxesEarned, TRANSACTION_TYPES.QUIZ, description, answerId, client
-      );
+      if (foxesEarned > 0) {
+        foxResult = await walletService.changeFoxes(
+          userId, foxesEarned, TRANSACTION_TYPES.QUIZ, description, answerId, client
+        );
+      }
       expResult = await walletService.changeExp(
         userId, expEarned, TRANSACTION_TYPES.QUIZ, description, answerId, client
       );
@@ -116,7 +119,7 @@ class QuizService {
       correctAnswer: question.correct,
       foxesEarned,
       expEarned,
-      newFoxesBalance: foxResult.newBalance,
+      newFoxesBalance: foxResult?.newBalance,
       newExp: expResult.newExp,
       leveledUp: expResult.leveledUp,
       newLevel: expResult.newLevel,

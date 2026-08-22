@@ -24,6 +24,7 @@ const TRANSACTION_TYPES = Object.freeze({
   SKIN_PURCHASE: 'skin_purchase',
   HOUSE_LEVEL_PURCHASE: 'house_level_purchase',
   ADMIN_GRANT: 'admin_grant',
+  ENTRY_BONUS: 'entry_bonus',
 });
 
 const SHOP_ORDER_STATUSES = Object.freeze({

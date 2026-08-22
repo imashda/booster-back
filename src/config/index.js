@@ -16,24 +16,25 @@ const config = {
   },
   jwt: {
     secret: process.env.JWT_SECRET,
-    accessExpiresIn: process.env.JWT_EXPIRES_IN || '7d',
+    // 30 дней — дети не помнят пароли и не переходят по силент-рефрешу вовремя, поэтому
+    // сессия держится как можно дольше сама по себе (authenticate всё равно перепроверяет
+    // статус пользователя в БД на каждый запрос, так что блокировка отработает мгновенно
+    // независимо от срока токена).
+    accessExpiresIn: process.env.JWT_EXPIRES_IN || '30d',
     refreshSecret: process.env.REFRESH_TOKEN_SECRET || process.env.JWT_SECRET,
     refreshExpiresIn: process.env.REFRESH_TOKEN_EXPIRES_IN || '30d',
     refreshTtlMs: 30 * 24 * 60 * 60 * 1000,
-  },
-  whatsapp: {
-    instanceId: process.env.WHATSAPP_INSTANCE_ID,
-    apiToken: process.env.WHATSAPP_API_TOKEN,
   },
   admin: {
     secretKey: process.env.ADMIN_SECRET_KEY,
   },
   game: {
-    dailyQuizFoxReward: parseInt(process.env.DAILY_QUIZ_FOX_REWARD, 10) || 100,
+    entryBonusFox: parseInt(process.env.ENTRY_BONUS_FOX, 10) || 200,
+    quizCorrectFoxReward: parseInt(process.env.QUIZ_CORRECT_FOX_REWARD, 10) || 20,
+    quizWrongFoxReward: parseInt(process.env.QUIZ_WRONG_FOX_REWARD, 10) || 0,
+    quizCorrectExpReward: parseInt(process.env.QUIZ_CORRECT_EXP_REWARD, 10) || 50,
+    quizWrongExpReward: parseInt(process.env.QUIZ_WRONG_EXP_REWARD, 10) || 10,
     dailyGameFoxLimit: parseInt(process.env.DAILY_GAMES_FOX_LIMIT, 10) || 100,
-    quizWrongFoxReward: 10,
-    quizCorrectExpReward: 50,
-    quizWrongExpReward: 10,
   },
   cron: {
     timezone: 'Asia/Almaty',

@@ -141,6 +141,16 @@ class UserRepository {
     await db.query('UPDATE users SET last_login_at = NOW() WHERE id = $1', [id]);
   }
 
+  // Атомарно помечает первый вход (WHERE last_login_at IS NULL) и сообщает, застолбил ли
+  // именно этот вызов "первый вход" — так конкурентные повторные логины не начислят бонус дважды.
+  async claimFirstLogin(id) {
+    const { rows } = await db.query(
+      'UPDATE users SET last_login_at = NOW() WHERE id = $1 AND last_login_at IS NULL RETURNING id',
+      [id]
+    );
+    return rows.length > 0;
+  }
+
   async countStudents() {
     const { rows } = await db.query("SELECT COUNT(*) FROM users WHERE role = 'student'");
     return parseInt(rows[0].count, 10);

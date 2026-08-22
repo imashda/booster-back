@@ -8,13 +8,14 @@ const config = require('../config');
 const userRepo = require('../repositories/UserRepository');
 const tokenRepo = require('../repositories/TokenRepository');
 const registrationRepo = require('../repositories/RegistrationRepository');
+const walletService = require('./WalletService');
 const {
   NotFoundError,
   UnauthorizedError,
   ConflictError,
   BadRequestError,
 } = require('../domain/errors');
-const { USER_STATUSES, REGISTRATION_STATUSES } = require('../constants');
+const { USER_STATUSES, REGISTRATION_STATUSES, TRANSACTION_TYPES } = require('../constants');
 
 const BCRYPT_ROUNDS = 12;
 
@@ -54,7 +55,7 @@ class AuthService {
     await registrationRepo.create({ id, fullName, phone: normalizedPhone, grade });
 
     return {
-      message: 'Заявка отправлена. Администратор рассмотрит её и вышлет пароль на WhatsApp.',
+      message: 'Заявка отправлена. Администратор рассмотрит её и передаст логин и пароль куратору.',
       requestId: id,
     };
   }
@@ -86,13 +87,23 @@ class AuthService {
 
     const { accessToken, refreshToken } = generateTokenPair(user.id, user.role);
 
+    // claimFirstLogin атомарно (UPDATE ... WHERE last_login_at IS NULL) решает, кто именно
+    // застолбил "первый вход" — так параллельные повторные логины не начислят бонус дважды.
+    const isFirstLogin = await userRepo.claimFirstLogin(user.id);
+
     const expiresAt = new Date(Date.now() + config.jwt.refreshTtlMs);
-    await Promise.all([
+    const [, foxResult] = await Promise.all([
       tokenRepo.create({ id: uuidv4(), userId: user.id, tokenHash: hashToken(refreshToken), expiresAt }),
-      userRepo.updateLastLogin(user.id),
+      isFirstLogin
+        ? walletService.changeFoxes(
+            user.id, config.game.entryBonusFox, TRANSACTION_TYPES.ENTRY_BONUS, 'Бонус за первый вход в приложение'
+          )
+        : Promise.resolve(null),
+      isFirstLogin ? Promise.resolve() : userRepo.updateLastLogin(user.id),
     ]);
 
     const { password_hash, ...safeUser } = user;
+    if (foxResult) safeUser.foxes = foxResult.newBalance;
     return { user: safeUser, accessToken, refreshToken };
   }
 

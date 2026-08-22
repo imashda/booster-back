@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS fox_transactions (
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   amount      INTEGER NOT NULL,             -- + начисление, - списание
   balance_after INTEGER NOT NULL,
-  type        VARCHAR(50) NOT NULL,         -- 'quiz'|'game'|'shop_purchase'|'admin_grant'|'skin_purchase'|'house_level_purchase'
+  type        VARCHAR(50) NOT NULL,         -- 'quiz'|'game'|'shop_purchase'|'admin_grant'|'skin_purchase'|'house_level_purchase'|'entry_bonus'
   description TEXT,
   reference_id UUID,                        -- ID связанной сущности (quiz_answer, game_session, shop_order, etc.)
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()

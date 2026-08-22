@@ -35,13 +35,14 @@ async function seed() {
     console.log('✅ Skin categories seeded');
 
     // ── Mini Games ──────────────────────────────────────────
+    // 10 FOX за игру, лимит 100 FOX/день (DAILY_GAMES_FOX_LIMIT) = максимум 10 засчитанных игр в день.
     const games = [
-      { slug: 'fox-collector',   name: 'Сбор Фоксов',         fox: 30, exp: 15 },
-      { slug: 'office-escape',   name: 'Побег из офиса',       fox: 20, exp: 10 },
-      { slug: 'rooftop-race',    name: 'Гонка по крышам',      fox: 20, exp: 10 },
-      { slug: 'fox-puzzle',      name: 'Пазл с Фоксом',        fox: 20, exp: 10 },
-      { slug: 'fox-maze',        name: 'Лабиринт для лис',     fox: 20, exp: 10 },
-      { slug: 'artifact-hunt',   name: 'Охота за артефактом',  fox: 20, exp: 10 },
+      { slug: 'fox-collector',   name: 'Сбор Фоксов',         fox: 10, exp: 15 },
+      { slug: 'office-escape',   name: 'Побег из офиса',       fox: 10, exp: 10 },
+      { slug: 'rooftop-race',    name: 'Гонка по крышам',      fox: 10, exp: 10 },
+      { slug: 'fox-puzzle',      name: 'Пазл с Фоксом',        fox: 10, exp: 10 },
+      { slug: 'fox-maze',        name: 'Лабиринт для лис',     fox: 10, exp: 10 },
+      { slug: 'artifact-hunt',   name: 'Охота за артефактом',  fox: 10, exp: 10 },
     ];
     for (const g of games) {
       await client.query(`

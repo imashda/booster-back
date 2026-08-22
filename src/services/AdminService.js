@@ -7,7 +7,6 @@ const registrationRepo = require('../repositories/RegistrationRepository');
 const tokenRepo = require('../repositories/TokenRepository');
 const walletRepo = require('../repositories/WalletRepository');
 const walletService = require('./WalletService');
-const whatsAppService = require('./WhatsAppService');
 const authService = require('./AuthService');
 const { NotFoundError, ConflictError, BadRequestError } = require('../domain/errors');
 const { REGISTRATION_STATUSES, TRANSACTION_TYPES } = require('../constants');
@@ -72,13 +71,12 @@ class AdminService {
       client.release();
     }
 
-    const waResult = await whatsAppService.sendPassword(request.phone, request.full_name, rawPassword);
-
+    // Логин (phone) и пароль отдаются куратору в ответе — он пересылает их ученику сам
+    // (WhatsApp-автоотправки нет).
     return {
       userId: newUserId,
       phone: request.phone,
       rawPassword,
-      whatsappSent: waResult.success,
     };
   }
 
@@ -90,7 +88,6 @@ class AdminService {
     }
 
     await registrationRepo.reject(requestId, adminId, reason);
-    await whatsAppService.sendRegistrationRejected(request.phone, request.full_name, reason);
   }
 
   async listUsers(filters) {
@@ -111,9 +108,8 @@ class AdminService {
     const newUserId = uuidv4();
 
     await userRepo.create({ id: newUserId, phone: normalizedPhone, passwordHash, fullName, grade });
-    const waResult = await whatsAppService.sendPassword(normalizedPhone, fullName, rawPassword);
 
-    return { userId: newUserId, phone: normalizedPhone, rawPassword, whatsappSent: waResult.success };
+    return { userId: newUserId, phone: normalizedPhone, rawPassword };
   }
 
   async updateUserStatus(userId, status) {
@@ -150,9 +146,7 @@ class AdminService {
       tokenRepo.deleteByUserId(userId),
     ]);
 
-    const waResult = await whatsAppService.sendPassword(user.phone, user.full_name, rawPassword);
-
-    return { rawPassword, whatsappSent: waResult.success };
+    return { phone: user.phone, rawPassword };
   }
 
   async setHouseLevelPrice(level, priceFoxes) {

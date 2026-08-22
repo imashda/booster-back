@@ -5,7 +5,6 @@ const { getClient } = require('../config/database');
 const shopRepo = require('../repositories/ShopRepository');
 const userRepo = require('../repositories/UserRepository');
 const walletService = require('./WalletService');
-const whatsAppService = require('./WhatsAppService');
 const { NotFoundError, BadRequestError } = require('../domain/errors');
 const { TRANSACTION_TYPES } = require('../constants');
 
@@ -46,9 +45,6 @@ class ShopService {
     } finally {
       client.release();
     }
-
-    whatsAppService.sendShopOrderConfirmation(user.phone, user.full_name, item.name, orderId)
-      .catch(() => {});
 
     return {
       orderId,

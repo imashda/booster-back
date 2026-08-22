@@ -58,7 +58,7 @@ class AdminController {
 
   async resetPassword(req, res) {
     const data = await adminService.resetPassword(req.params.id);
-    res.json({ success: true, message: 'Пароль сброшен и отправлен на WhatsApp', data });
+    res.json({ success: true, message: 'Пароль сброшен', data });
   }
 
   async getQuestions(req, res) {
