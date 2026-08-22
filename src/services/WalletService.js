@@ -51,18 +51,6 @@ class WalletService {
     });
   }
 
-  async rewardUser(userId, foxAmount, expAmount, type, description, referenceId = null) {
-    return this._withTransaction(async (client) => {
-      const foxResult = foxAmount > 0
-        ? await this.changeFoxes(userId, foxAmount, type, description, referenceId, client)
-        : null;
-      const expResult = expAmount > 0
-        ? await this.changeExp(userId, expAmount, type, description, referenceId, client)
-        : null;
-      return { success: true, foxes: foxResult, exp: expResult };
-    });
-  }
-
   async getTransactionHistory(userId, type, limit, offset) {
     return walletRepo.findTransactions(userId, type, limit, offset);
   }

@@ -9,6 +9,11 @@ class AuthController {
     res.status(201).json({ success: true, ...result });
   }
 
+  async registrationStatus(req, res) {
+    const data = await authService.getRegistrationStatus(req.params.id);
+    res.json({ success: true, data });
+  }
+
   async login(req, res) {
     const data = await authService.login(req.body.phone, req.body.password);
     res.json({ success: true, data });

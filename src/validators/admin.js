@@ -78,6 +78,12 @@ const updateSkinSchema = [
   body('is_active').optional().isBoolean().withMessage('is_active должен быть true/false'),
 ];
 
+const updateHouseLevelPriceSchema = [
+  param('level').isInt({ min: 1, max: 50 }).withMessage('level: число от 1 до 50'),
+  // null явно снимает цену (уровень становится непокупаемым, только через EXP)
+  body('price_foxes').optional({ values: 'null' }).isInt({ min: 0 }).withMessage('price_foxes должен быть неотрицательным или null'),
+];
+
 module.exports = {
   approveRegistrationSchema,
   rejectRegistrationSchema,
@@ -92,4 +98,5 @@ module.exports = {
   updateShopItemSchema,
   createSkinSchema,
   updateSkinSchema,
+  updateHouseLevelPriceSchema,
 };

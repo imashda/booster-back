@@ -21,8 +21,10 @@ class UserRepository {
     return rows[0] ?? null;
   }
 
-  async create({ id, phone, passwordHash, fullName, grade }) {
-    const { rows } = await db.query(
+  // client defaults to the pool wrapper (same .query(text, params) interface as a transaction
+  // client) — pass an explicit transaction client when this must commit atomically with other writes.
+  async create({ id, phone, passwordHash, fullName, grade }, client = db) {
+    const { rows } = await client.query(
       `INSERT INTO users (id, phone, password_hash, full_name, grade, role, status)
        VALUES ($1, $2, $3, $4, $5, 'student', 'active') RETURNING id`,
       [id, phone, passwordHash, fullName, grade]
@@ -50,7 +52,8 @@ class UserRepository {
     const { rows } = await db.query(
       `SELECT u.level, u.exp,
               hl.name, hl.image_url, hl.description, hl.exp_required,
-              hl2.level AS next_level, hl2.exp_required AS next_level_exp, hl2.name AS next_level_name
+              hl2.level AS next_level, hl2.exp_required AS next_level_exp, hl2.name AS next_level_name,
+              hl2.price_foxes AS next_level_price_foxes
        FROM users u
        JOIN house_levels hl ON hl.level = u.level
        LEFT JOIN house_levels hl2 ON hl2.level = u.level + 1
@@ -93,24 +96,27 @@ class UserRepository {
 
   async search({ search, status, role, limit, offset }) {
     const params = [];
-    let sql = `SELECT id, phone, full_name, grade, role, status, foxes, exp, level, created_at, last_login_at
-               FROM users WHERE 1=1`;
+    let where = 'WHERE 1=1';
 
     if (search) {
       params.push(`%${search}%`);
-      sql += ` AND (full_name ILIKE $${params.length} OR phone ILIKE $${params.length})`;
+      where += ` AND (full_name ILIKE $${params.length} OR phone ILIKE $${params.length})`;
     }
-    if (status) { params.push(status);  sql += ` AND status = $${params.length}`; }
-    if (role)   { params.push(role);    sql += ` AND role   = $${params.length}`; }
+    if (status) { params.push(status); where += ` AND status = $${params.length}`; }
+    if (role)   { params.push(role);   where += ` AND role   = $${params.length}`; }
 
     const { rows: [{ count }] } = await db.query(
-      sql.replace(/SELECT.*?FROM/, 'SELECT COUNT(*) FROM'),
+      `SELECT COUNT(*) FROM users ${where}`,
       params
     );
 
-    params.push(limit, offset);
-    sql += ` ORDER BY created_at DESC LIMIT $${params.length - 1} OFFSET $${params.length}`;
-    const { rows } = await db.query(sql, params);
+    const listParams = [...params, limit, offset];
+    const { rows } = await db.query(
+      `SELECT id, phone, full_name, grade, role, status, foxes, exp, level, created_at, last_login_at
+       FROM users ${where}
+       ORDER BY created_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,
+      listParams
+    );
 
     return { users: rows, total: parseInt(count, 10) };
   }

@@ -20,6 +20,7 @@ router.use(authenticate);
 
 // Profile
 router.get('/me',                asyncHandler(profileCtrl.getProfile.bind(profileCtrl)));
+router.get('/me/skins',          asyncHandler(profileCtrl.getMySkins.bind(profileCtrl)));
 router.get('/me/skins/equipped', asyncHandler(profileCtrl.getEquippedSkins.bind(profileCtrl)));
 router.get('/me/transactions',   asyncHandler(profileCtrl.getTransactions.bind(profileCtrl)));
 router.get('/me/house',          asyncHandler(profileCtrl.getMyHouseLevel.bind(profileCtrl)));
@@ -43,7 +44,8 @@ router.post('/skins/buy',       buySkinSchema,  validate, asyncHandler(skinCtrl.
 router.post('/skins/equip',     equipSkinSchema, validate, asyncHandler(skinCtrl.equipSkin.bind(skinCtrl)));
 
 // Leaderboard & House levels
-router.get('/leaderboard',   asyncHandler(leaderboardCtrl.getLeaderboard.bind(leaderboardCtrl)));
-router.get('/house-levels',  asyncHandler(leaderboardCtrl.getHouseLevels.bind(leaderboardCtrl)));
+router.get('/leaderboard',        asyncHandler(leaderboardCtrl.getLeaderboard.bind(leaderboardCtrl)));
+router.get('/house-levels',       asyncHandler(leaderboardCtrl.getHouseLevels.bind(leaderboardCtrl)));
+router.post('/house-levels/buy-next', asyncHandler(leaderboardCtrl.buyNextHouseLevel.bind(leaderboardCtrl)));
 
 module.exports = router;

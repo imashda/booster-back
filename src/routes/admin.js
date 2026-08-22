@@ -20,6 +20,7 @@ const {
   updateShopItemSchema,
   createSkinSchema,
   updateSkinSchema,
+  updateHouseLevelPriceSchema,
 } = require('../validators/admin');
 
 const router = Router();
@@ -55,5 +56,8 @@ router.put('/shop/items/:id',   updateShopItemSchema, validate, h(adminCtrl.upda
 // Skins
 router.post('/skins',     createSkinSchema, validate, h(adminCtrl.createSkin));
 router.put('/skins/:id',  updateSkinSchema, validate, h(adminCtrl.updateSkin));
+
+// House levels
+router.patch('/house-levels/:level/price', updateHouseLevelPriceSchema, validate, h(adminCtrl.updateHouseLevelPrice));
 
 module.exports = router;

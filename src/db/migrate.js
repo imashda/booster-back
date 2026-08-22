@@ -258,7 +258,7 @@ CREATE TABLE IF NOT EXISTS fox_transactions (
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
   amount      INTEGER NOT NULL,             -- + начисление, - списание
   balance_after INTEGER NOT NULL,
-  type        VARCHAR(50) NOT NULL,         -- 'quiz'|'game'|'shop_purchase'|'admin_grant'|'skin_purchase'
+  type        VARCHAR(50) NOT NULL,         -- 'quiz'|'game'|'shop_purchase'|'admin_grant'|'skin_purchase'|'house_level_purchase'
   description TEXT,
   reference_id UUID,                        -- ID связанной сущности (quiz_answer, game_session, shop_order, etc.)
   created_at  TIMESTAMPTZ NOT NULL DEFAULT NOW()
@@ -303,8 +303,11 @@ CREATE TABLE IF NOT EXISTS house_levels (
   name        VARCHAR(255) NOT NULL,
   exp_required INTEGER NOT NULL,    -- EXP для достижения этого уровня
   image_url   TEXT,
-  description TEXT
+  description TEXT,
+  price_foxes INTEGER    -- цена покупки следующего уровня за FOX; NULL = уровень нельзя купить, только заработать EXP
 );
+
+ALTER TABLE house_levels ADD COLUMN IF NOT EXISTS price_foxes INTEGER;
 
 -- ============================================================
 -- ALPHA CRM SYNC LOG (не используется приложением — интеграция отключена)

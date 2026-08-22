@@ -8,6 +8,15 @@ class RegistrationRepository {
     return rows[0] ?? null;
   }
 
+  // Только статус, без ФИО/телефона — эндпоинт публичный (неавторизованный), ключ — непредсказуемый UUID заявки.
+  async findStatusById(id) {
+    const { rows } = await db.query(
+      'SELECT status, reject_reason FROM registration_requests WHERE id = $1',
+      [id]
+    );
+    return rows[0] ?? null;
+  }
+
   async findLatestByPhone(phone) {
     const { rows } = await db.query(
       `SELECT id, status FROM registration_requests
@@ -24,8 +33,10 @@ class RegistrationRepository {
     );
   }
 
-  async approve(id, reviewedBy) {
-    await db.query(
+  // client defaults to the pool wrapper — pass an explicit transaction client when this must
+  // commit atomically with other writes (e.g. creating the approved user).
+  async approve(id, reviewedBy, client = db) {
+    await client.query(
       `UPDATE registration_requests
        SET status = 'approved', reviewed_by = $1, reviewed_at = NOW()
        WHERE id = $2`,

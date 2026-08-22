@@ -22,6 +22,7 @@ const TRANSACTION_TYPES = Object.freeze({
   GAME: 'game',
   SHOP_PURCHASE: 'shop_purchase',
   SKIN_PURCHASE: 'skin_purchase',
+  HOUSE_LEVEL_PURCHASE: 'house_level_purchase',
   ADMIN_GRANT: 'admin_grant',
 });
 

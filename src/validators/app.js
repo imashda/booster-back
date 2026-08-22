@@ -24,7 +24,16 @@ const buySkinSchema = [
 ];
 
 const equipSkinSchema = [
-  body('category_id').isUUID().withMessage('Неверный ID категории'),
+  // skin_id указан => категория выводится из скина на бэкенде.
+  // skin_id не указан => это "снять скин", тогда обязателен category_id (какой слот очищать).
+  body('skin_id').optional({ values: 'null' }).isUUID().withMessage('Неверный ID скина'),
+  body('category_id').optional().isUUID().withMessage('Неверный ID категории'),
+  body().custom((value) => {
+    if (!value.skin_id && !value.category_id) {
+      throw new Error('Укажите skin_id (чтобы надеть скин) или category_id (чтобы снять)');
+    }
+    return true;
+  }),
 ];
 
 module.exports = {

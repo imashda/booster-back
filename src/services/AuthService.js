@@ -59,6 +59,15 @@ class AuthService {
     };
   }
 
+  async getRegistrationStatus(requestId) {
+    const request = await registrationRepo.findStatusById(requestId);
+    if (!request) throw new NotFoundError('Заявка не найдена');
+    return {
+      status: request.status,
+      rejectReason: request.status === REGISTRATION_STATUSES.REJECTED ? request.reject_reason : null,
+    };
+  }
+
   async login(phone, password) {
     const normalizedPhone = phone.replace(/\D/g, '');
     const user = await userRepo.findByPhone(normalizedPhone);

@@ -19,6 +19,14 @@ class WalletRepository {
     return rows[0] ?? null;
   }
 
+  async lockUser(client, userId) {
+    const { rows } = await client.query(
+      'SELECT foxes, exp, level FROM users WHERE id = $1 FOR UPDATE',
+      [userId]
+    );
+    return rows[0] ?? null;
+  }
+
   async setFoxBalance(client, userId, newBalance) {
     await client.query(
       'UPDATE users SET foxes = $1, updated_at = NOW() WHERE id = $2',
@@ -78,6 +86,19 @@ class WalletRepository {
   async findAllHouseLevels() {
     const { rows } = await db.query('SELECT * FROM house_levels ORDER BY level');
     return rows;
+  }
+
+  async findLevel(level) {
+    const { rows } = await db.query('SELECT * FROM house_levels WHERE level = $1', [level]);
+    return rows[0] ?? null;
+  }
+
+  async setLevelPrice(level, priceFoxes) {
+    const { rows } = await db.query(
+      'UPDATE house_levels SET price_foxes = $1 WHERE level = $2 RETURNING *',
+      [priceFoxes, level]
+    );
+    return rows[0] ?? null;
   }
 }
 

@@ -20,8 +20,8 @@ class SkinController {
 
   async equipSkin(req, res) {
     const { skin_id, category_id } = req.body;
-    await skinService.equipSkin(req.user.id, skin_id, category_id);
-    res.json({ success: true, message: 'Скин надет' });
+    const data = await skinService.equipSkin(req.user.id, skin_id, category_id);
+    res.json({ success: true, message: skin_id ? 'Скин надет' : 'Скин снят', data });
   }
 }
 

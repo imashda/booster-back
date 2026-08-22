@@ -1,11 +1,15 @@
 'use strict';
 
-const { body } = require('express-validator');
+const { body, param } = require('express-validator');
 
 const registerSchema = [
   body('full_name').trim().notEmpty().withMessage('ФИО обязательно'),
   body('phone').trim().notEmpty().isMobilePhone().withMessage('Неверный номер телефона'),
   body('grade').trim().notEmpty().withMessage('Класс обязателен'),
+];
+
+const registrationStatusSchema = [
+  param('id').isUUID().withMessage('Неверный ID заявки'),
 ];
 
 const loginSchema = [
@@ -22,4 +26,4 @@ const changePasswordSchema = [
   body('newPassword').isLength({ min: 6 }).withMessage('Минимум 6 символов'),
 ];
 
-module.exports = { registerSchema, loginSchema, refreshTokenSchema, changePasswordSchema };
+module.exports = { registerSchema, registrationStatusSchema, loginSchema, refreshTokenSchema, changePasswordSchema };

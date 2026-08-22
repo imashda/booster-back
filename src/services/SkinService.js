@@ -21,6 +21,10 @@ class SkinService {
     return skinRepo.findEquipped(userId);
   }
 
+  async listOwnedSkins(userId) {
+    return skinRepo.findOwned(userId);
+  }
+
   async buySkin(userId, skinId) {
     const [skin, user] = await Promise.all([
       skinRepo.findById(skinId),
@@ -83,12 +87,24 @@ class SkinService {
     }
   }
 
+  // category_id выводится из самого скина — так клиент не может надеть скин не в свою категорию
+  // (например, головной убор в слот обуви), и фронту не нужно отдельно знать category_id, чтобы что-то надеть.
+  // category_id нужен явно только чтобы снять скин (skinId не передан) — иначе неясно, какой слот очищать.
   async equipSkin(userId, skinId, categoryId) {
     if (skinId) {
+      const skin = await skinRepo.findById(skinId);
+      if (!skin) throw new NotFoundError('Скин не найден');
+
       const owned = await skinRepo.isOwned(userId, skinId);
       if (!owned) throw new BadRequestError('Скин не куплен');
+
+      categoryId = skin.category_id;
+    } else if (!categoryId) {
+      throw new BadRequestError('Чтобы снять скин, укажите category_id');
     }
-    await skinRepo.equip({ userId, categoryId, skinId });
+
+    await skinRepo.equip({ userId, categoryId, skinId: skinId ?? null });
+    return { categoryId, skinId: skinId ?? null };
   }
 
   async createSkin(data) {

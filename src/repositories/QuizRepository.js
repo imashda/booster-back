@@ -44,8 +44,8 @@ class QuizRepository {
     return rows[0] ?? null;
   }
 
-  async saveAnswer({ id, userId, questionId, date, answer, isCorrect, foxesEarned, expEarned }) {
-    await db.query(
+  async saveAnswer(client, { id, userId, questionId, date, answer, isCorrect, foxesEarned, expEarned }) {
+    await client.query(
       `INSERT INTO quiz_answers
          (id, user_id, question_id, quiz_date, answer, is_correct, foxes_earned, exp_earned)
        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,

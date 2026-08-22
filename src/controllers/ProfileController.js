@@ -10,6 +10,11 @@ class ProfileController {
     res.json({ success: true, data });
   }
 
+  async getMySkins(req, res) {
+    const data = await skinService.listOwnedSkins(req.user.id);
+    res.json({ success: true, data });
+  }
+
   async getEquippedSkins(req, res) {
     const data = await skinService.getEquippedSkins(req.user.id);
     res.json({ success: true, data });

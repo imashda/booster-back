@@ -1,9 +1,11 @@
 'use strict';
 
 const { v4: uuidv4 } = require('uuid');
+const { getClient } = require('../config/database');
 const userRepo = require('../repositories/UserRepository');
 const registrationRepo = require('../repositories/RegistrationRepository');
 const tokenRepo = require('../repositories/TokenRepository');
+const walletRepo = require('../repositories/WalletRepository');
 const walletService = require('./WalletService');
 const whatsAppService = require('./WhatsAppService');
 const authService = require('./AuthService');
@@ -49,14 +51,26 @@ class AdminService {
     const passwordHash = await authService.hashPassword(rawPassword);
     const newUserId = uuidv4();
 
-    await userRepo.create({
-      id: newUserId,
-      phone: request.phone,
-      passwordHash,
-      fullName: request.full_name,
-      grade: request.grade,
-    });
-    await registrationRepo.approve(requestId, adminId);
+    // Создание пользователя и одобрение заявки — одна транзакция: иначе при сбое между
+    // шагами пользователь уже создан, а заявка навсегда останется "pending".
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      await userRepo.create({
+        id: newUserId,
+        phone: request.phone,
+        passwordHash,
+        fullName: request.full_name,
+        grade: request.grade,
+      }, client);
+      await registrationRepo.approve(requestId, adminId, client);
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
 
     const waResult = await whatsAppService.sendPassword(request.phone, request.full_name, rawPassword);
 
@@ -139,6 +153,12 @@ class AdminService {
     const waResult = await whatsAppService.sendPassword(user.phone, user.full_name, rawPassword);
 
     return { rawPassword, whatsappSent: waResult.success };
+  }
+
+  async setHouseLevelPrice(level, priceFoxes) {
+    const updated = await walletRepo.setLevelPrice(level, priceFoxes ?? null);
+    if (!updated) throw new NotFoundError('Уровень дома не найден');
+    return updated;
   }
 }
 

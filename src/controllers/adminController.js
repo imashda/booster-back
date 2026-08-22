@@ -117,6 +117,11 @@ class AdminController {
     });
     res.json({ success: true, data });
   }
+
+  async updateHouseLevelPrice(req, res) {
+    const data = await adminService.setHouseLevelPrice(Number(req.params.level), req.body.price_foxes);
+    res.json({ success: true, data });
+  }
 }
 
 module.exports = new AdminController();

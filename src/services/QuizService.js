@@ -2,6 +2,7 @@
 
 const { v4: uuidv4 } = require('uuid');
 const config = require('../config');
+const { getClient } = require('../config/database');
 const quizRepo = require('../repositories/QuizRepository');
 const walletService = require('./WalletService');
 const { NotFoundError, ConflictError } = require('../domain/errors');
@@ -64,26 +65,46 @@ class QuizService {
     const isCorrect = answer.toLowerCase() === question.correct;
     const foxesEarned = isCorrect ? config.game.dailyQuizFoxReward : config.game.quizWrongFoxReward;
     const expEarned = isCorrect ? config.game.quizCorrectExpReward : config.game.quizWrongExpReward;
+    const description = `Daily Quiz ${today} — ${isCorrect ? 'верный' : 'неверный'} ответ`;
 
     const answerId = uuidv4();
-    await quizRepo.saveAnswer({
-      id: answerId,
-      userId,
-      questionId: question.id,
-      date: today,
-      answer: answer.toLowerCase(),
-      isCorrect,
-      foxesEarned,
-      expEarned,
-    });
 
-    const [rewards, answeredSoFar, scheduledToday] = await Promise.all([
-      walletService.rewardUser(
-        userId, foxesEarned, expEarned,
-        TRANSACTION_TYPES.QUIZ,
-        `Daily Quiz ${today} — ${isCorrect ? 'верный' : 'неверный'} ответ`,
-        answerId
-      ),
+    // Ответ и начисление FOX/EXP — одна транзакция: quiz_answers уникален на (user_id, question_id),
+    // так что при сбое между записью ответа и начислением награды пользователь не смог бы повторить
+    // попытку и терял бы награду безвозвратно.
+    const client = await getClient();
+    let foxResult;
+    let expResult;
+    try {
+      await client.query('BEGIN');
+
+      await quizRepo.saveAnswer(client, {
+        id: answerId,
+        userId,
+        questionId: question.id,
+        date: today,
+        answer: answer.toLowerCase(),
+        isCorrect,
+        foxesEarned,
+        expEarned,
+      });
+
+      foxResult = await walletService.changeFoxes(
+        userId, foxesEarned, TRANSACTION_TYPES.QUIZ, description, answerId, client
+      );
+      expResult = await walletService.changeExp(
+        userId, expEarned, TRANSACTION_TYPES.QUIZ, description, answerId, client
+      );
+
+      await client.query('COMMIT');
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+
+    const [answeredSoFar, scheduledToday] = await Promise.all([
       quizRepo.findUserAnswersForDate(userId, today),
       quizRepo.findScheduledQuestionsForDate(today),
     ]);
@@ -95,10 +116,10 @@ class QuizService {
       correctAnswer: question.correct,
       foxesEarned,
       expEarned,
-      newFoxesBalance: rewards.foxes?.newBalance,
-      newExp: rewards.exp?.newExp,
-      leveledUp: rewards.exp?.leveledUp,
-      newLevel: rewards.exp?.newLevel,
+      newFoxesBalance: foxResult.newBalance,
+      newExp: expResult.newExp,
+      leveledUp: expResult.leveledUp,
+      newLevel: expResult.newLevel,
       answeredCount: answeredSoFar.length,
       totalQuestions,
       completed: answeredSoFar.length === totalQuestions,

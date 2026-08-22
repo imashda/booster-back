@@ -20,8 +20,8 @@ class ShopRepository {
     return rows[0] ?? null;
   }
 
-  async createOrder({ id, userId, itemId, foxesSpent }) {
-    await db.query(
+  async createOrder(client, { id, userId, itemId, foxesSpent }) {
+    await client.query(
       'INSERT INTO shop_orders (id, user_id, item_id, foxes_spent) VALUES ($1, $2, $3, $4)',
       [id, userId, itemId, foxesSpent]
     );

@@ -110,6 +110,19 @@ Body:
 
 ---
 
+### `GET /api/auth/registration-status/:id`
+Публичный (без токена) опрос статуса заявки — для экрана ожидания «одобрили меня?». `:id` — это `requestId` из ответа `POST /api/auth/register`. Пароль сюда не приходит (он уходит в WhatsApp при одобрении) — этот эндпоинт только сигнализирует, что можно переходить на экран входа.
+
+200:
+```json
+{ "success": true, "data": { "status": "pending", "rejectReason": null } }
+```
+`status`: `"pending" | "approved" | "rejected"`. `rejectReason` заполнен только при `"rejected"`, иначе `null`.
+
+Ошибки: `404` — заявки с таким ID не существует; `422` — `:id` не UUID.
+
+---
+
 ### `POST /api/auth/login`
 Body:
 ```json
@@ -208,6 +221,32 @@ Body:
 ```
 > `skins_count` приходит строкой (`COUNT(*)` из Postgres) — приведи к числу на фронте.
 
+### `GET /api/me/skins`
+Все купленные (не обязательно надетые) скины пользователя — для экрана «мой гардероб/инвентарь», без лишних неприобретённых скинов и без клиентской фильтрации каталога.
+```json
+{
+  "success": true,
+  "data": [
+    {
+      "id": "s1...",
+      "category_id": "c1...",
+      "category_slug": "top",
+      "category_name": "Верхняя одежда",
+      "name": "Красная куртка",
+      "description": null,
+      "image_url": "https://.../skin1.png",
+      "price_foxes": 500,
+      "level_req": 3,
+      "exp_bonus": 0,
+      "is_active": true,
+      "purchased_at": "2026-08-15T10:00:00.000Z",
+      "equipped": true
+    }
+  ]
+}
+```
+> В отличие от `GET /api/skins`, здесь `equipped` — настоящий boolean (не ID строки или `null`).
+
 ### `GET /api/me/skins/equipped`
 200:
 ```json
@@ -270,11 +309,12 @@ Query: `type` — один из `quiz|game|shop_purchase|skin_purchase|admin_gra
     "exp_required": 4500,
     "next_level": 7,
     "next_level_exp": 6000,
-    "next_level_name": "Таунхаус"
+    "next_level_name": "Таунхаус",
+    "next_level_price_foxes": 800
   }
 }
 ```
-На максимальном уровне (50) `next_level`/`next_level_exp`/`next_level_name` будут `null`.
+На максимальном уровне (50) `next_level`/`next_level_exp`/`next_level_name`/`next_level_price_foxes` будут `null`. `next_level_price_foxes` также `null`, если следующий уровень нельзя купить за FOX (только заработать EXP) — показывай кнопку «купить» лишь когда оно не `null`.
 
 ---
 
@@ -534,22 +574,31 @@ Body:
 Ошибки: `404` — скин не найден; `409` — уже куплен; `400` — не хватает уровня или FOX.
 
 ### `POST /api/skins/equip`
-Body:
+Категория выводится из самого скина на бэкенде — **не** нужно отдельно передавать `category_id`, чтобы что-то надеть, и невозможно надеть скин не в свой слот (например, головной убор в слот обуви), даже если по ошибке прислать чужой `category_id`.
+
+Чтобы **надеть**:
 ```json
-{ "skin_id": "s1...", "category_id": "c1..." }
+{ "skin_id": "s1..." }
 ```
-Чтобы снять скин с категории (ничего не надето), передай `skin_id: null`.
+Чтобы **снять** — `skin_id` не передаём, но тогда обязателен `category_id` (иначе непонятно, какой слот очищать):
+```json
+{ "category_id": "c1..." }
+```
 
 | Поле | Тип | Обязательно |
 |---|---|---|
-| category_id | UUID | да |
-| skin_id | UUID \| null | нет (омит/`null` = снять) |
+| skin_id | UUID | нет — обязателен, если не передан `category_id` |
+| category_id | UUID | нет — обязателен, если не передан `skin_id` (случай «снять») |
 
-200:
+200 (надели):
 ```json
-{ "success": true, "message": "Скин надет" }
+{ "success": true, "message": "Скин надет", "data": { "categoryId": "c1...", "skinId": "s1..." } }
 ```
-Ошибки: `400` — скин не куплен.
+200 (сняли):
+```json
+{ "success": true, "message": "Скин снят", "data": { "categoryId": "c1...", "skinId": null } }
+```
+Ошибки: `400` — скин не куплен; `404` — скин не найден; `422` — не передано ни `skin_id`, ни `category_id`, либо ID не UUID.
 
 ---
 
@@ -578,12 +627,31 @@ Body:
 {
   "success": true,
   "data": [
-    { "level": 1, "name": "Шалаш", "exp_required": 0, "image_url": null, "description": null },
-    { "level": 2, "name": "Палатка", "exp_required": 500, "image_url": null, "description": null }
+    { "level": 1, "name": "Шалаш", "exp_required": 0, "image_url": null, "description": null, "price_foxes": null },
+    { "level": 2, "name": "Палатка", "exp_required": 500, "image_url": null, "description": null, "price_foxes": 800 }
   ]
 }
 ```
-Всего 50 уровней.
+Всего 50 уровней. `price_foxes: null` — уровень нельзя купить за FOX, только заработать EXP (квизы/игры/скины с `exp_bonus`).
+
+### `POST /api/house-levels/buy-next`
+Покупает **следующий** уровень дома от текущего (пропустить уровень нельзя — всегда бьёт по `текущий_уровень + 1`). Тело запроса не нужно. По сути это грант ровно того EXP, которого не хватает до порога следующего уровня — то есть механика идентична `exp_bonus` у скинов: level всегда остаётся производным от exp, а не устанавливается напрямую, поэтому его невозможно случайно рассинхронизировать с последующими квизами/играми.
+
+200:
+```json
+{
+  "success": true,
+  "message": "Уровень куплен!",
+  "data": {
+    "houseName": "Палатка",
+    "foxesSpent": 800,
+    "newFoxesBalance": 440,
+    "newExp": 500,
+    "newLevel": 2
+  }
+}
+```
+Ошибки: `400` — вы уже на максимальном уровне (50); `400` — у следующего уровня `price_foxes: null` (нельзя купить, только заработать); `400` — не хватает FOX.
 
 ---
 
@@ -815,6 +883,19 @@ Body (пример):
 ```
 200: обновлённый скин в `data`. Ошибки: `404` — скин не найден.
 
+### `PATCH /api/admin/house-levels/:level/price`
+Задаёт цену покупки уровня за FOX (см. `POST /api/house-levels/buy-next` в разделе «Лидерборд и уровни домов»). `:level` — номер уровня (1–50), для которого настраивается цена его покупки (то есть цена перехода `level-1 → level`).
+
+Body:
+```json
+{ "price_foxes": 800 }
+```
+Передай `price_foxes: null`, чтобы снова сделать уровень непокупаемым (только через EXP):
+```json
+{ "price_foxes": null }
+```
+200: обновлённая строка уровня (`{ level, name, exp_required, image_url, description, price_foxes }`) в `data`. Ошибки: `404` — уровня с таким номером нет.
+
 ---
 
 ## 🎮 Игровая механика
@@ -829,7 +910,7 @@ Body (пример):
 
 > Квиз дня — до 5 вопросов, награда начисляется за **каждый** отдельно (не только за первый) — то есть за полностью пройденный квиз с верными ответами можно получить до 500 FOX / 250 EXP в день. Это отдельно от лимита FOX за мини-игры. Суммы регулируются через `DAILY_QUIZ_FOX_REWARD`/`quizWrongFoxReward`/`quizCorrectExpReward`/`quizWrongExpReward` — если 500 FOX/день за квиз многовато для экономики, уменьшите `DAILY_QUIZ_FOX_REWARD` в `.env`.
 
-- Уровни домов 1–50 растут по EXP (см. `GET /api/house-levels`).
+- Уровни домов 1–50 растут по EXP (см. `GET /api/house-levels`); следующий уровень (только следующий, без пропусков) можно докупить за FOX через `POST /api/house-levels/buy-next`, если админ задал ему цену (`PATCH /api/admin/house-levels/:level/price`) — по умолчанию у всех уровней цены нет, только через EXP.
 - Некоторые скины дают разовый EXP-бонус при покупке (`exp_bonus` в `GET /api/skins`) — например, «+3 к уровню» в макете реализовано как эквивалентное количество EXP, а не прямая установка уровня, чтобы прогресс не расходился с формулой уровней.
 - Лидерборд — топ-100 по EXP, сбрасывается 1-го числа месяца (снапшот сохраняется).
 - WhatsApp (UltraMsg) — уведомления при одобрении/отклонении заявки и заказе из магазина; в `development` только логируются.

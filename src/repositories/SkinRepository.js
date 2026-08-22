@@ -36,6 +36,22 @@ class SkinRepository {
     return rows[0] ?? null;
   }
 
+  async findOwned(userId) {
+    const { rows } = await db.query(
+      `SELECT s.*, sc.slug AS category_slug, sc.name AS category_name,
+              us.purchased_at,
+              (ues.id IS NOT NULL) AS equipped
+       FROM user_skins us
+       JOIN skins s ON s.id = us.skin_id
+       JOIN skin_categories sc ON sc.id = s.category_id
+       LEFT JOIN user_equipped_skins ues ON ues.skin_id = s.id AND ues.user_id = us.user_id
+       WHERE us.user_id = $1
+       ORDER BY sc.sort_order, us.purchased_at DESC`,
+      [userId]
+    );
+    return rows;
+  }
+
   async isOwned(userId, skinId) {
     const { rows } = await db.query(
       'SELECT id FROM user_skins WHERE user_id = $1 AND skin_id = $2',
