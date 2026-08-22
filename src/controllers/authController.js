@@ -4,9 +4,10 @@ const authService = require('../services/AuthService');
 
 class AuthController {
   async register(req, res) {
-    const { full_name, grade, parent_name, parent_phone } = req.body;
+    const { full_name, grade, parent_name, parent_phone, is_booster_student } = req.body;
     const result = await authService.register({
       fullName: full_name, grade, parentName: parent_name, parentPhone: parent_phone,
+      isBoosterStudent: is_booster_student,
     });
     res.status(201).json({ success: true, ...result });
   }

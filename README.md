@@ -105,7 +105,7 @@ Authorization: Bearer <accessToken>
 
 Body:
 ```json
-{ "full_name": "Иванов Иван Иванович", "grade": "10A", "parent_name": "Иванова Мария Петровна", "parent_phone": "+77001234567" }
+{ "full_name": "Иванов Иван Иванович", "grade": "10A", "parent_name": "Иванова Мария Петровна", "parent_phone": "+77001234567", "is_booster_student": true }
 ```
 | Поле | Тип | Обязательно |
 |---|---|---|
@@ -113,6 +113,7 @@ Body:
 | grade | string | да — класс обучения |
 | parent_name | string | да — имя родителя |
 | parent_phone | string (любой формат телефона) | да — телефон родителя, на него куратор пришлёт логин/пароль |
+| is_booster_student | boolean | да — ответ на экран «Вы ученик Booster?» перед отправкой; заявка уходит на модерацию в любом случае (и на `true`, и на `false`) — поле только помечает её для куратора в очереди (`GET /api/admin/registrations`), не блокирует регистрацию |
 
 201:
 ```json
@@ -707,7 +708,7 @@ Body:
   "requests": [
     {
       "id": "r1...", "full_name": "Сидоров Сидор", "grade": "9B",
-      "parent_name": "Сидорова Анна", "parent_phone": "77009998877",
+      "parent_name": "Сидорова Анна", "parent_phone": "77009998877", "is_booster_student": true,
       "status": "pending", "reviewed_by": null, "reviewed_at": null, "reject_reason": null,
       "created_at": "2026-08-20T10:00:00.000Z"
     }

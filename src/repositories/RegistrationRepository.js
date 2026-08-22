@@ -29,11 +29,11 @@ class RegistrationRepository {
     return rows[0] ?? null;
   }
 
-  async create({ id, fullName, grade, parentName, parentPhone }) {
+  async create({ id, fullName, grade, parentName, parentPhone, isBoosterStudent }) {
     await db.query(
-      `INSERT INTO registration_requests (id, full_name, grade, parent_name, parent_phone)
-       VALUES ($1, $2, $3, $4, $5)`,
-      [id, fullName, grade, parentName, parentPhone]
+      `INSERT INTO registration_requests (id, full_name, grade, parent_name, parent_phone, is_booster_student)
+       VALUES ($1, $2, $3, $4, $5, $6)`,
+      [id, fullName, grade, parentName, parentPhone, isBoosterStudent]
     );
   }
 

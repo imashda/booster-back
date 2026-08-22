@@ -42,7 +42,11 @@ const generateTokenPair = (userId, role) => {
 };
 
 class AuthService {
-  async register({ fullName, grade, parentName, parentPhone }) {
+  // isBoosterStudent — ответ на экран "Вы ученик Booster?" перед отправкой заявки. Заявка
+  // уходит на модерацию в любом случае (и на "Да", и на "Нет") — это только пометка для
+  // куратора в очереди заявок (GET /api/admin/registrations), она не отсекает заявителя
+  // и не меняет то, как бэкенд генерирует логин/пароль при одобрении.
+  async register({ fullName, grade, parentName, parentPhone, isBoosterStudent }) {
     const normalizedParentPhone = parentPhone.replace(/\D/g, '');
 
     // Дедуп по (телефон родителя + ФИО ребёнка), не по одному телефону — у родителя может
@@ -53,7 +57,9 @@ class AuthService {
     }
 
     const id = uuidv4();
-    await registrationRepo.create({ id, fullName, grade, parentName, parentPhone: normalizedParentPhone });
+    await registrationRepo.create({
+      id, fullName, grade, parentName, parentPhone: normalizedParentPhone, isBoosterStudent,
+    });
 
     return {
       message: 'Заявка отправлена. Администратор рассмотрит её и передаст логин и пароль куратору.',

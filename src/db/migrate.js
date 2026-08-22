@@ -60,21 +60,23 @@ CREATE INDEX IF NOT EXISTS idx_users_exp ON users(exp DESC);
 -- REGISTRATION REQUESTS (ожидают апрув от администратора)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS registration_requests (
-  id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  full_name     VARCHAR(255) NOT NULL,  -- ФИО ребёнка
-  grade         VARCHAR(20)  NOT NULL,
-  parent_name   VARCHAR(255),
-  parent_phone  VARCHAR(20),
-  phone         VARCHAR(20),  -- legacy-поле, новым кодом не заполняется
-  status        VARCHAR(20)  NOT NULL DEFAULT 'pending', -- 'pending' | 'approved' | 'rejected'
-  reviewed_by   UUID REFERENCES users(id),
-  reviewed_at   TIMESTAMPTZ,
-  reject_reason TEXT,
-  created_at    TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  id                  UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
+  full_name           VARCHAR(255) NOT NULL,  -- ФИО ребёнка
+  grade               VARCHAR(20)  NOT NULL,
+  parent_name         VARCHAR(255),
+  parent_phone        VARCHAR(20),
+  phone               VARCHAR(20),  -- legacy-поле, новым кодом не заполняется
+  is_booster_student  BOOLEAN,      -- ответ на вопрос "Вы ученик Booster?" (экран перед отправкой заявки)
+  status              VARCHAR(20)  NOT NULL DEFAULT 'pending', -- 'pending' | 'approved' | 'rejected'
+  reviewed_by         UUID REFERENCES users(id),
+  reviewed_at         TIMESTAMPTZ,
+  reject_reason       TEXT,
+  created_at          TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
 ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255);
 ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(20);
+ALTER TABLE registration_requests ADD COLUMN IF NOT EXISTS is_booster_student BOOLEAN;
 ALTER TABLE registration_requests ALTER COLUMN phone DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_reg_requests_status ON registration_requests(status);

@@ -7,6 +7,9 @@ const registerSchema = [
   body('grade').trim().notEmpty().withMessage('Класс обучения обязателен'),
   body('parent_name').trim().notEmpty().withMessage('Имя родителя обязательно'),
   body('parent_phone').trim().notEmpty().isMobilePhone().withMessage('Неверный номер телефона родителя'),
+  // Ответ на экран "Вы ученик Booster?" — просто помечает заявку для куратора,
+  // заявка уходит на модерацию в любом случае (см. AuthService.register).
+  body('is_booster_student').isBoolean().withMessage('is_booster_student должен быть true/false'),
 ];
 
 const registrationStatusSchema = [
