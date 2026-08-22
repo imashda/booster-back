@@ -211,6 +211,8 @@ CREATE TABLE IF NOT EXISTS skin_categories (
 CREATE TABLE IF NOT EXISTS skins (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   category_id  UUID NOT NULL REFERENCES skin_categories(id),
+  slug         VARCHAR(100), -- стабильный ключ ('set_1'...'set_30') — картинка образа лежит в бандле
+                              -- приложения (assets/outfits), а не по image_url; см. фронт getOutfitSets()
   name         VARCHAR(255) NOT NULL,
   description  TEXT,
   image_url    TEXT,
@@ -223,6 +225,8 @@ CREATE TABLE IF NOT EXISTS skins (
 );
 
 ALTER TABLE skins ADD COLUMN IF NOT EXISTS exp_bonus INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE skins ADD COLUMN IF NOT EXISTS slug VARCHAR(100);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_skins_slug ON skins(slug) WHERE slug IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_skins_category ON skins(category_id);
 CREATE INDEX IF NOT EXISTS idx_skins_active ON skins(is_active);

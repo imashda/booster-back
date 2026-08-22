@@ -79,7 +79,7 @@ class SkinRepository {
   async findEquipped(userId) {
     const { rows } = await db.query(
       `SELECT ues.category_id, sc.slug AS category_slug, sc.name AS category_name,
-              s.id AS skin_id, s.name AS skin_name, s.image_url
+              s.id AS skin_id, s.slug AS skin_slug, s.name AS skin_name, s.image_url
        FROM user_equipped_skins ues
        JOIN skin_categories sc ON sc.id = ues.category_id
        LEFT JOIN skins s ON s.id = ues.skin_id

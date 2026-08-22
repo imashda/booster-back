@@ -19,12 +19,13 @@ async function seed() {
     console.log('✅ Admin user created (login: 77000000000, pass: Admin2025!)');
 
     // ── Skin Categories ─────────────────────────────────────
+    // Одна категория на ВСЕ образы: реальные ассеты (assets/outfits/set_1.png…
+    // set_30.png) — это цельные картинки персонажа целиком, а не части по
+    // слотам (верх/низ/обувь), так что модель "несколько категорий = несколько
+    // надетых вещей одновременно" сюда не подходит — один образ и есть весь
+    // надетый "скин" (как equip по одной категории и работает на бэке).
     const skinCategories = [
-      { slug: 'top',        name: 'Верхняя одежда', sort: 1 },
-      { slug: 'pants',      name: 'Штаны',          sort: 2 },
-      { slug: 'shoes',      name: 'Обувь',          sort: 3 },
-      { slug: 'accessories',name: 'Аксессуары',     sort: 4 },
-      { slug: 'headwear',   name: 'Головные уборы', sort: 5 },
+      { slug: 'outfit', name: 'Образы', sort: 1 },
     ];
     for (const cat of skinCategories) {
       await client.query(`
@@ -34,33 +35,55 @@ async function seed() {
     }
     console.log('✅ Skin categories seeded');
 
-    // ── Skins ───────────────────────────────────────────────
-    // Один бесплатный скин на слот (level_req 1, price 0) — как раньше был
-    // бесплатный "Базовый" сет в моке, плюс несколько платных на пробу.
-    const { rows: catRows } = await client.query('SELECT id, slug FROM skin_categories');
-    const catIdBySlug = Object.fromEntries(catRows.map((r) => [r.slug, r.id]));
-    const skins = [
-      { cat: 'top', name: 'Базовая футболка', price: 0, levelReq: 1, exp: 0 },
-      { cat: 'top', name: 'Кожаная куртка', price: 500, levelReq: 3, exp: 0 },
-      { cat: 'top', name: 'Худи', price: 300, levelReq: 2, exp: 0 },
-      { cat: 'pants', name: 'Базовые джинсы', price: 0, levelReq: 1, exp: 0 },
-      { cat: 'pants', name: 'Спортивные штаны', price: 250, levelReq: 2, exp: 0 },
-      { cat: 'shoes', name: 'Базовые кроссовки', price: 0, levelReq: 1, exp: 0 },
-      { cat: 'shoes', name: 'Кроссовки Air', price: 400, levelReq: 3, exp: 0 },
-      { cat: 'accessories', name: 'Солнечные очки', price: 300, levelReq: 2, exp: 0 },
-      { cat: 'accessories', name: 'Наушники', price: 500, levelReq: 4, exp: 0 },
-      { cat: 'headwear', name: 'Кепка', price: 350, levelReq: 2, exp: 0 },
-      { cat: 'headwear', name: 'Корона', price: 1000, levelReq: 5, exp: 300 },
+    // ── Skins (30 целых образов, картинки — во фронте по slug) ─
+    // Названия/цены — из исходного мока (OUTFIT_SETS), levelBonus мока
+    // переведён в exp_bonus как levelBonus*500 (примерная EXP-цена уровня
+    // по таблице house_levels). set_1 бесплатный и без EXP-бонуса — как
+    // раньше это был стартовый образ, а не "покупка ради профита".
+    const { rows: [outfitCat] } = await client.query(
+      "SELECT id FROM skin_categories WHERE slug = 'outfit'"
+    );
+    const outfitSets = [
+      { n: 1,  name: 'Базовый',       price: 0,    levelBonus: 0 },
+      { n: 2,  name: 'Королевский',   price: 100,  levelBonus: 1 },
+      { n: 3,  name: 'Фермер',        price: 150,  levelBonus: 1 },
+      { n: 4,  name: 'Спасатель',     price: 150,  levelBonus: 1 },
+      { n: 5,  name: 'Кэжуал',        price: 150,  levelBonus: 1 },
+      { n: 6,  name: 'Летний',        price: 200,  levelBonus: 1 },
+      { n: 7,  name: 'Агент',         price: 200,  levelBonus: 1 },
+      { n: 8,  name: 'Баскетболист',  price: 250,  levelBonus: 1 },
+      { n: 9,  name: 'Футболист',     price: 250,  levelBonus: 1 },
+      { n: 10, name: 'Спортсмен',     price: 300,  levelBonus: 2 },
+      { n: 11, name: 'Деловой',       price: 350,  levelBonus: 2 },
+      { n: 12, name: 'Уличный',       price: 400,  levelBonus: 2 },
+      { n: 13, name: 'Чемпион',       price: 450,  levelBonus: 2 },
+      { n: 14, name: 'Художник',      price: 500,  levelBonus: 2 },
+      { n: 15, name: 'Новогодний',    price: 550,  levelBonus: 2 },
+      { n: 16, name: 'Пилот',         price: 650,  levelBonus: 2 },
+      { n: 17, name: 'Капитан',       price: 700,  levelBonus: 2 },
+      { n: 18, name: 'Фотограф',      price: 800,  levelBonus: 3 },
+      { n: 19, name: 'Детектив',      price: 900,  levelBonus: 3 },
+      { n: 20, name: 'Врач',          price: 1050, levelBonus: 3 },
+      { n: 21, name: 'Турист',        price: 1200, levelBonus: 3 },
+      { n: 22, name: 'Рейнджер',      price: 1350, levelBonus: 3 },
+      { n: 23, name: 'Пожарный',      price: 1500, levelBonus: 3 },
+      { n: 24, name: 'Гонщик',        price: 1700, levelBonus: 4 },
+      { n: 25, name: 'Супергерой',    price: 1900, levelBonus: 4 },
+      { n: 26, name: 'Учёный',        price: 2150, levelBonus: 4 },
+      { n: 27, name: 'Механик',       price: 2450, levelBonus: 4 },
+      { n: 28, name: 'Разведчик',     price: 2800, levelBonus: 4 },
+      { n: 29, name: 'Полицейский',   price: 3250, levelBonus: 5 },
+      { n: 30, name: 'Легендарный',   price: 3600, levelBonus: 6 },
     ];
     const { rows: [{ count: existingSkins }] } = await client.query('SELECT COUNT(*) FROM skins');
     if (Number(existingSkins) === 0) {
-      for (const sk of skins) {
+      for (const set of outfitSets) {
         await client.query(`
-          INSERT INTO skins (id, category_id, name, price_foxes, level_req, exp_bonus)
-          VALUES ($1, $2, $3, $4, $5, $6)
-        `, [uuidv4(), catIdBySlug[sk.cat], sk.name, sk.price, sk.levelReq, sk.exp]);
+          INSERT INTO skins (id, category_id, slug, name, price_foxes, level_req, exp_bonus)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [uuidv4(), outfitCat.id, `set_${set.n}`, set.name, set.price, 1, set.levelBonus * 500]);
       }
-      console.log('✅ Skins seeded');
+      console.log('✅ Skins seeded (30 outfit sets)');
     } else {
       console.log('↷ Skins already present, skipped');
     }
