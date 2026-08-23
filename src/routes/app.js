@@ -21,7 +21,7 @@ router.use(authenticate);
 // Profile
 router.get('/me',                asyncHandler(profileCtrl.getProfile.bind(profileCtrl)));
 router.get('/me/skins',          asyncHandler(profileCtrl.getMySkins.bind(profileCtrl)));
-router.get('/me/skins/equipped', asyncHandler(profileCtrl.getEquippedSkins.bind(profileCtrl)));
+router.get('/me/skins/equipped', asyncHandler(profileCtrl.getEquippedSkin.bind(profileCtrl)));
 router.get('/me/transactions',   asyncHandler(profileCtrl.getTransactions.bind(profileCtrl)));
 router.get('/me/house',          asyncHandler(profileCtrl.getMyHouseLevel.bind(profileCtrl)));
 
@@ -37,11 +37,10 @@ router.post('/games/result',  submitGameResultSchema, validate, asyncHandler(gam
 router.get('/shop',        asyncHandler(shopCtrl.getShopItems.bind(shopCtrl)));
 router.post('/shop/order', orderShopItemSchema, validate, asyncHandler(shopCtrl.requestShopItem.bind(shopCtrl)));
 
-// Skins
-router.get('/skins',            asyncHandler(skinCtrl.getSkins.bind(skinCtrl)));
-router.get('/skins/categories', asyncHandler(skinCtrl.getSkinCategories.bind(skinCtrl)));
-router.post('/skins/buy',       buySkinSchema,  validate, asyncHandler(skinCtrl.buySkin.bind(skinCtrl)));
-router.post('/skins/equip',     equipSkinSchema, validate, asyncHandler(skinCtrl.equipSkin.bind(skinCtrl)));
+// Skins (образы)
+router.get('/skins',        asyncHandler(skinCtrl.getSkins.bind(skinCtrl)));
+router.post('/skins/buy',   buySkinSchema,  validate, asyncHandler(skinCtrl.buySkin.bind(skinCtrl)));
+router.post('/skins/equip', equipSkinSchema, validate, asyncHandler(skinCtrl.equipSkin.bind(skinCtrl)));
 
 // Leaderboard & House levels
 router.get('/leaderboard',        asyncHandler(leaderboardCtrl.getLeaderboard.bind(leaderboardCtrl)));

@@ -23,17 +23,10 @@ const buySkinSchema = [
   body('skin_id').isUUID().withMessage('Неверный ID скина'),
 ];
 
+// skin_id указан — надеть этот образ; опущен/null — снять текущий (один образ на пользователя,
+// категорий больше нет).
 const equipSkinSchema = [
-  // skin_id указан => категория выводится из скина на бэкенде.
-  // skin_id не указан => это "снять скин", тогда обязателен category_id (какой слот очищать).
-  body('skin_id').optional({ values: 'null' }).isUUID().withMessage('Неверный ID скина'),
-  body('category_id').optional().isUUID().withMessage('Неверный ID категории'),
-  body().custom((value) => {
-    if (!value.skin_id && !value.category_id) {
-      throw new Error('Укажите skin_id (чтобы надеть скин) или category_id (чтобы снять)');
-    }
-    return true;
-  }),
+  body('skin_id').optional({ values: 'null' }).isUUID().withMessage('Неверный ID образа'),
 ];
 
 module.exports = {

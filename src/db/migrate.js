@@ -43,11 +43,15 @@ CREATE TABLE IF NOT EXISTS users (
 );
 
 -- Существующие БД созданы до перехода на сгенерированный логин (была колонка phone) — переносим.
+-- EXCEPTION ловит гонку, если два процесса мигрируют одну БД параллельно и второй приходит
+-- к RENAME уже после первого — тогда просто нечего переименовывать, это не ошибка.
 DO $$
 BEGIN
   IF EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name = 'users' AND column_name = 'phone') THEN
     ALTER TABLE users RENAME COLUMN phone TO login;
   END IF;
+EXCEPTION WHEN undefined_column THEN
+  NULL;
 END $$;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(20);
@@ -190,18 +194,20 @@ CREATE TABLE IF NOT EXISTS daily_game_limits (
 );
 
 -- ============================================================
--- SKINS (Скины)
+-- ОБРАЗЫ (целиком надеваемые скины — не по категориям, один надет за раз)
 -- ============================================================
+-- Legacy-таблица от старой per-category модели (top/pants/shoes/...) — новым кодом не используется,
+-- оставлена нетронутой ради уже существующих данных. Образ ("skins" ниже) больше не привязан к категории.
 CREATE TABLE IF NOT EXISTS skin_categories (
   id   UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  slug VARCHAR(50) UNIQUE NOT NULL,  -- 'top', 'pants', 'shoes', 'accessories', 'headwear'
+  slug VARCHAR(50) UNIQUE NOT NULL,
   name VARCHAR(100) NOT NULL,
   sort_order INTEGER DEFAULT 0
 );
 
 CREATE TABLE IF NOT EXISTS skins (
   id           UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
-  category_id  UUID NOT NULL REFERENCES skin_categories(id),
+  category_id  UUID REFERENCES skin_categories(id), -- legacy, необязателен в новой модели "один образ целиком"
   name         VARCHAR(255) NOT NULL,
   description  TEXT,
   image_url    TEXT,
@@ -214,6 +220,7 @@ CREATE TABLE IF NOT EXISTS skins (
 );
 
 ALTER TABLE skins ADD COLUMN IF NOT EXISTS exp_bonus INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE skins ALTER COLUMN category_id DROP NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_skins_category ON skins(category_id);
 CREATE INDEX IF NOT EXISTS idx_skins_active ON skins(is_active);
@@ -227,7 +234,8 @@ CREATE TABLE IF NOT EXISTS user_skins (
   UNIQUE (user_id, skin_id)
 );
 
--- Надетые скины (активный образ)
+-- Legacy-таблица от старой per-category модели — новым кодом не используется
+-- (надетый образ теперь хранится в одном поле users.equipped_skin_id, см. ниже).
 CREATE TABLE IF NOT EXISTS user_equipped_skins (
   id          UUID PRIMARY KEY DEFAULT uuid_generate_v4(),
   user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
@@ -236,6 +244,8 @@ CREATE TABLE IF NOT EXISTS user_equipped_skins (
   updated_at  TIMESTAMPTZ NOT NULL DEFAULT NOW(),
   UNIQUE (user_id, category_id)
 );
+
+ALTER TABLE users ADD COLUMN IF NOT EXISTS equipped_skin_id UUID REFERENCES skins(id);
 
 -- ============================================================
 -- SHOP (Магазин товаров за FOX)

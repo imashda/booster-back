@@ -9,15 +9,11 @@ const { NotFoundError, BadRequestError, ConflictError } = require('../domain/err
 const { TRANSACTION_TYPES } = require('../constants');
 
 class SkinService {
-  async listSkins(userId, categorySlug) {
-    return skinRepo.findAll({ userId, categorySlug });
+  async listSkins(userId) {
+    return skinRepo.findAll(userId);
   }
 
-  async listCategories() {
-    return skinRepo.findCategories();
-  }
-
-  async getEquippedSkins(userId) {
+  async getEquippedSkin(userId) {
     return skinRepo.findEquipped(userId);
   }
 
@@ -31,14 +27,14 @@ class SkinService {
       userRepo.findById(userId),
     ]);
 
-    if (!skin) throw new NotFoundError('Скин не найден');
+    if (!skin) throw new NotFoundError('Образ не найден');
 
     const alreadyOwned = await skinRepo.isOwned(userId, skinId);
-    if (alreadyOwned) throw new ConflictError('Скин уже куплен');
+    if (alreadyOwned) throw new ConflictError('Образ уже куплен');
 
     if (user.level < skin.level_req) {
       throw new BadRequestError(
-        `Для этого скина нужен уровень ${skin.level_req}. Ваш уровень: ${user.level}`
+        `Для этого образа нужен уровень ${skin.level_req}. Ваш уровень: ${user.level}`
       );
     }
     if (user.foxes < skin.price_foxes) {
@@ -58,14 +54,14 @@ class SkinService {
       await skinRepo.purchase(client, { id: purchaseId, userId, skinId });
       const foxResult = await walletService.changeFoxes(
         userId, -skin.price_foxes,
-        TRANSACTION_TYPES.SKIN_PURCHASE, `Покупка скина: ${skin.name}`, purchaseId, client
+        TRANSACTION_TYPES.SKIN_PURCHASE, `Покупка образа: ${skin.name}`, purchaseId, client
       );
 
       let expResult = null;
       if (skin.exp_bonus > 0) {
         expResult = await walletService.changeExp(
           userId, skin.exp_bonus,
-          TRANSACTION_TYPES.SKIN_PURCHASE, `Бонус за покупку скина: ${skin.name}`, purchaseId, client
+          TRANSACTION_TYPES.SKIN_PURCHASE, `Бонус за покупку образа: ${skin.name}`, purchaseId, client
         );
       }
 
@@ -87,24 +83,15 @@ class SkinService {
     }
   }
 
-  // category_id выводится из самого скина — так клиент не может надеть скин не в свою категорию
-  // (например, головной убор в слот обуви), и фронту не нужно отдельно знать category_id, чтобы что-то надеть.
-  // category_id нужен явно только чтобы снять скин (skinId не передан) — иначе неясно, какой слот очищать.
-  async equipSkin(userId, skinId, categoryId) {
+  // Один образ надет за раз — категорий больше нет. skinId=null снимает текущий образ.
+  async equipSkin(userId, skinId) {
     if (skinId) {
-      const skin = await skinRepo.findById(skinId);
-      if (!skin) throw new NotFoundError('Скин не найден');
-
       const owned = await skinRepo.isOwned(userId, skinId);
-      if (!owned) throw new BadRequestError('Скин не куплен');
-
-      categoryId = skin.category_id;
-    } else if (!categoryId) {
-      throw new BadRequestError('Чтобы снять скин, укажите category_id');
+      if (!owned) throw new BadRequestError('Образ не куплен');
     }
 
-    await skinRepo.equip({ userId, categoryId, skinId: skinId ?? null });
-    return { categoryId, skinId: skinId ?? null };
+    await skinRepo.equip(userId, skinId ?? null);
+    return { skinId: skinId ?? null };
   }
 
   async createSkin(data) {
@@ -113,7 +100,7 @@ class SkinService {
 
   async updateSkin(id, data) {
     const skin = await skinRepo.updateSkin(id, data);
-    if (!skin) throw new NotFoundError('Скин не найден');
+    if (!skin) throw new NotFoundError('Образ не найден');
     return skin;
   }
 }

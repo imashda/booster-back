@@ -242,19 +242,16 @@ Body:
 > `skins_count` приходит строкой (`COUNT(*)` из Postgres) — приведи к числу на фронте.
 
 ### `GET /api/me/skins`
-Все купленные (не обязательно надетые) скины пользователя — для экрана «мой гардероб/инвентарь», без лишних неприобретённых скинов и без клиентской фильтрации каталога.
+Все купленные (не обязательно надетый) образы пользователя — для экрана «мой гардероб/инвентарь», без лишних неприобретённых образов и без клиентской фильтрации каталога.
 ```json
 {
   "success": true,
   "data": [
     {
       "id": "s1...",
-      "category_id": "c1...",
-      "category_slug": "top",
-      "category_name": "Верхняя одежда",
-      "name": "Красная куртка",
+      "name": "Образ 3",
       "description": null,
-      "image_url": "https://.../skin1.png",
+      "image_url": "https://.../outfit3.png",
       "price_foxes": 500,
       "level_req": 3,
       "exp_bonus": 0,
@@ -265,26 +262,30 @@ Body:
   ]
 }
 ```
-> В отличие от `GET /api/skins`, здесь `equipped` — настоящий boolean (не ID строки или `null`).
 
 ### `GET /api/me/skins/equipped`
-200:
+Надет только **один** образ за раз (не по категориям — «Образы» это цельные комплекты). Если ничего не надето — `data: null`.
+
+200 (что-то надето):
 ```json
 {
   "success": true,
-  "data": [
-    {
-      "category_id": "c1...",
-      "category_slug": "top",
-      "category_name": "Верхняя одежда",
-      "skin_id": "s1...",
-      "skin_name": "Красная куртка",
-      "image_url": "https://.../skin1.png"
-    }
-  ]
+  "data": {
+    "id": "s1...",
+    "name": "Образ 3",
+    "description": null,
+    "image_url": "https://.../outfit3.png",
+    "price_foxes": 500,
+    "level_req": 3,
+    "exp_bonus": 0,
+    "is_active": true
+  }
 }
 ```
-Категория без надетого скина тоже может прийти в списке со `skin_id: null`.
+200 (ничего не надето):
+```json
+{ "success": true, "data": null }
+```
 
 ### `GET /api/me/transactions?type=&limit=20&offset=0`
 Query: `type` — один из `quiz|game|shop_purchase|skin_purchase|admin_grant` (опционально), `limit`/`offset` — пагинация.
@@ -531,9 +532,11 @@ Body:
 
 ---
 
-## 👕 Скины — `/api` 🔒
+## 👕 Образы (скины) — `/api` 🔒
 
-### `GET /api/skins?category_slug=`
+Образ — цельный костюм персонажа (не отдельные слоты «верх/низ/обувь»). У пользователя надет **максимум один** образ одновременно — надевая новый, автоматически снимаешь предыдущий. Категорий/слотов нет.
+
+### `GET /api/skins`
 200:
 ```json
 {
@@ -541,38 +544,23 @@ Body:
   "data": [
     {
       "id": "s1...",
-      "category_id": "c1...",
-      "name": "Красная куртка",
+      "name": "Образ 3",
       "description": null,
-      "image_url": "https://.../skin1.png",
+      "image_url": "https://.../outfit3.png",
       "price_foxes": 500,
       "level_req": 3,
       "exp_bonus": 0,
       "is_active": true,
       "created_at": "2026-01-10T08:00:00.000Z",
       "updated_at": "2026-01-10T08:00:00.000Z",
-      "category_slug": "top",
-      "category_name": "Верхняя одежда",
       "owned": "us1...",
-      "equipped": null
+      "equipped": false
     }
   ]
 }
 ```
-> `owned`/`equipped` — это ID строки в БД, если скин куплен/надет, иначе `null`. На фронте используй как boolean: `Boolean(item.owned)`.
-> `exp_bonus` — сколько EXP начислится при покупке (обычно `0`; для «уровневых» скинов задаётся админом). Это именно EXP, а не мгновенная прибавка к уровню — уровень пересчитывается по той же формуле, что и от квизов/игр, так что прогресс никогда не рассинхронизируется.
-
-### `GET /api/skins/categories`
-200:
-```json
-{
-  "success": true,
-  "data": [
-    { "id": "c1...", "slug": "top", "name": "Верхняя одежда", "sort_order": 1 },
-    { "id": "c2...", "slug": "pants", "name": "Штаны", "sort_order": 2 }
-  ]
-}
-```
+> `owned` — ID строки в БД, если куплен, иначе `null` (используй как boolean: `Boolean(item.owned)`). `equipped` — настоящий boolean.
+> `exp_bonus` — сколько EXP начислится при покупке (обычно `0`; задаётся админом для конкретных образов). Это именно EXP, а не мгновенная прибавка к уровню — уровень пересчитывается по той же формуле, что и от квизов/игр, так что прогресс никогда не рассинхронизируется.
 
 ### `POST /api/skins/buy`
 Body:
@@ -583,7 +571,7 @@ Body:
 ```json
 {
   "success": true,
-  "message": "Скин куплен!",
+  "message": "Образ куплен!",
   "data": {
     "skinId": "s1...",
     "newFoxesBalance": 740,
@@ -594,36 +582,30 @@ Body:
   }
 }
 ```
-> `expBonus`/`newExp`/`leveledUp`/`newLevel` присутствуют всегда; если у скина `exp_bonus: 0`, `newExp`/`leveledUp`/`newLevel` будут `null` (EXP не менялся).
+> `expBonus`/`newExp`/`leveledUp`/`newLevel` присутствуют всегда; если у образа `exp_bonus: 0`, `newExp`/`leveledUp`/`newLevel` будут `null` (EXP не менялся). Покупка не надевает образ автоматически — это отдельный шаг через `POST /api/skins/equip`.
 
-Ошибки: `404` — скин не найден; `409` — уже куплен; `400` — не хватает уровня или FOX.
+Ошибки: `404` — образ не найден; `409` — уже куплен; `400` — не хватает уровня или FOX.
 
 ### `POST /api/skins/equip`
-Категория выводится из самого скина на бэкенде — **не** нужно отдельно передавать `category_id`, чтобы что-то надеть, и невозможно надеть скин не в свой слот (например, головной убор в слот обуви), даже если по ошибке прислать чужой `category_id`.
-
-Чтобы **надеть**:
+Чтобы **надеть** (автоматически снимает предыдущий образ, если был):
 ```json
 { "skin_id": "s1..." }
 ```
-Чтобы **снять** — `skin_id` не передаём, но тогда обязателен `category_id` (иначе непонятно, какой слот очищать):
+Чтобы **снять** текущий образ (ничего не надето):
 ```json
-{ "category_id": "c1..." }
+{ "skin_id": null }
 ```
-
-| Поле | Тип | Обязательно |
-|---|---|---|
-| skin_id | UUID | нет — обязателен, если не передан `category_id` |
-| category_id | UUID | нет — обязателен, если не передан `skin_id` (случай «снять») |
+или просто не передавать `skin_id` вовсе — тело `{}` тоже снимает.
 
 200 (надели):
 ```json
-{ "success": true, "message": "Скин надет", "data": { "categoryId": "c1...", "skinId": "s1..." } }
+{ "success": true, "message": "Образ надет", "data": { "skinId": "s1..." } }
 ```
 200 (сняли):
 ```json
-{ "success": true, "message": "Скин снят", "data": { "categoryId": "c1...", "skinId": null } }
+{ "success": true, "message": "Образ снят", "data": { "skinId": null } }
 ```
-Ошибки: `400` — скин не куплен; `404` — скин не найден; `422` — не передано ни `skin_id`, ни `category_id`, либо ID не UUID.
+Ошибки: `400` — образ не куплен; `422` — `skin_id` не UUID.
 
 ---
 
@@ -652,11 +634,12 @@ Body:
 {
   "success": true,
   "data": [
-    { "level": 1, "name": "Шалаш", "exp_required": 0, "image_url": null, "description": null, "price_foxes": null },
-    { "level": 2, "name": "Палатка", "exp_required": 500, "image_url": null, "description": null, "price_foxes": 800 }
+    { "level": 1, "name": "Шалаш", "exp_required": 0, "image_url": null, "description": null, "price_foxes": 0 },
+    { "level": 2, "name": "Палатка", "exp_required": 500, "image_url": null, "description": null, "price_foxes": 100 }
   ]
 }
 ```
+> `price_foxes` заполнен для всех 50 уровней (0 → 5450 по мере роста). `null` возможен только если админ явно снял цену через `PATCH /api/admin/house-levels/:level/price`.
 Всего 50 уровней. `price_foxes: null` — уровень нельзя купить за FOX, только заработать EXP (квизы/игры/скины с `exp_bonus`).
 
 ### `POST /api/house-levels/buy-next`
@@ -900,16 +883,15 @@ Body (пример):
 Body:
 ```json
 {
-  "category_id": "c1...",
-  "name": "Синяя куртка",
+  "name": "Образ 3",
   "description": null,
-  "image_url": "https://.../skin2.png",
+  "image_url": "https://.../outfit3.png",
   "price_foxes": 800,
   "level_req": 5,
   "exp_bonus": 0
 }
 ```
-Обязательны `category_id`, `name`, `price_foxes` (≥0). `level_req` по умолчанию `1`, `exp_bonus` по умолчанию `0` (EXP, начисляемый пользователю при покупке — см. описание в разделе «Скины» выше). 201: созданный скин в `data`.
+Обязательны `name`, `price_foxes` (≥0). `level_req` по умолчанию `1`, `exp_bonus` по умолчанию `0` (EXP, начисляемый пользователю при покупке — см. описание в разделе «Образы» выше). 201: созданный образ в `data`.
 
 ### `PUT /api/admin/skins/:id`
 **Частичное обновление**, как и для товаров.
@@ -917,7 +899,7 @@ Body (пример):
 ```json
 { "is_active": false }
 ```
-200: обновлённый скин в `data`. Ошибки: `404` — скин не найден.
+200: обновлённый образ в `data`. Ошибки: `404` — образ не найден.
 
 ### `PATCH /api/admin/house-levels/:level/price`
 Задаёт цену покупки уровня за FOX (см. `POST /api/house-levels/buy-next` в разделе «Лидерборд и уровни домов»). `:level` — номер уровня (1–50), для которого настраивается цена его покупки (то есть цена перехода `level-1 → level`).
@@ -946,8 +928,8 @@ Body:
 
 > Квиз дня — до 5 вопросов, награда начисляется за **каждый** отдельно — при 5 верных ответах в день выходит максимум 100 FOX / 250 EXP. Это отдельно от лимита FOX за мини-игры. Суммы регулируются через `QUIZ_CORRECT_FOX_REWARD`/`QUIZ_WRONG_FOX_REWARD`/`QUIZ_CORRECT_EXP_REWARD`/`QUIZ_WRONG_EXP_REWARD` в `.env`.
 
-- Уровни домов 1–50 растут по EXP (см. `GET /api/house-levels`); следующий уровень (только следующий, без пропусков) можно докупить за FOX через `POST /api/house-levels/buy-next`, если админ задал ему цену (`PATCH /api/admin/house-levels/:level/price`) — по умолчанию у всех уровней цены нет, только через EXP.
-- Некоторые скины дают разовый EXP-бонус при покупке (`exp_bonus` в `GET /api/skins`) — например, «+3 к уровню» в макете реализовано как эквивалентное количество EXP, а не прямая установка уровня, чтобы прогресс не расходился с формулой уровней.
+- Уровни домов 1–50 растут по EXP (см. `GET /api/house-levels`); следующий уровень (только следующий, без пропусков) можно докупить за FOX через `POST /api/house-levels/buy-next`. Цены заданы для всех 50 уровней (от 100 FOX за уровень 2 до 5450 FOX за уровень 50) — менять их можно через `PATCH /api/admin/house-levels/:level/price`, передав `price_foxes: null`, чтобы снова сделать уровень непокупаемым (только через EXP).
+- Некоторые образы дают разовый EXP-бонус при покупке (`exp_bonus` в `GET /api/skins`) — например, «+3 к уровню» в макете реализовано как эквивалентное количество EXP, а не прямая установка уровня, чтобы прогресс не расходился с формулой уровней.
 - Лидерборд — топ-100 по EXP, сбрасывается 1-го числа месяца (снапшот сохраняется).
 - Автоотправки логина/пароля никуда нет (не WhatsApp, не email) — они возвращаются в ответе админских эндпоинтов (`approve`, `POST /api/admin/users`, `reset-password`), куратор передаёт их ученику вручную.
 

@@ -3,28 +3,16 @@
 const db = require('../config/database');
 
 class SkinRepository {
-  async findAll({ userId, categorySlug }) {
-    const params = [userId];
-    let sql = `
-      SELECT s.*, sc.slug AS category_slug, sc.name AS category_name,
-             us.id  AS owned,
-             ues.id AS equipped
-      FROM skins s
-      JOIN skin_categories sc ON sc.id = s.category_id
-      LEFT JOIN user_skins us         ON us.skin_id  = s.id AND us.user_id  = $1
-      LEFT JOIN user_equipped_skins ues ON ues.skin_id = s.id AND ues.user_id = $1
-      WHERE s.is_active = true`;
-    if (categorySlug) {
-      params.push(categorySlug);
-      sql += ` AND sc.slug = $${params.length}`;
-    }
-    sql += ' ORDER BY sc.sort_order, s.price_foxes';
-    const { rows } = await db.query(sql, params);
-    return rows;
-  }
-
-  async findCategories() {
-    const { rows } = await db.query('SELECT * FROM skin_categories ORDER BY sort_order');
+  async findAll(userId) {
+    const { rows } = await db.query(
+      `SELECT s.*, us.id AS owned,
+              COALESCE(s.id = (SELECT equipped_skin_id FROM users WHERE id = $1), false) AS equipped
+       FROM skins s
+       LEFT JOIN user_skins us ON us.skin_id = s.id AND us.user_id = $1
+       WHERE s.is_active = true
+       ORDER BY s.price_foxes`,
+      [userId]
+    );
     return rows;
   }
 
@@ -38,15 +26,12 @@ class SkinRepository {
 
   async findOwned(userId) {
     const { rows } = await db.query(
-      `SELECT s.*, sc.slug AS category_slug, sc.name AS category_name,
-              us.purchased_at,
-              (ues.id IS NOT NULL) AS equipped
+      `SELECT s.*, us.purchased_at,
+              COALESCE(s.id = (SELECT equipped_skin_id FROM users WHERE id = $1), false) AS equipped
        FROM user_skins us
        JOIN skins s ON s.id = us.skin_id
-       JOIN skin_categories sc ON sc.id = s.category_id
-       LEFT JOIN user_equipped_skins ues ON ues.skin_id = s.id AND ues.user_id = us.user_id
        WHERE us.user_id = $1
-       ORDER BY sc.sort_order, us.purchased_at DESC`,
+       ORDER BY us.purchased_at DESC`,
       [userId]
     );
     return rows;
@@ -67,33 +52,27 @@ class SkinRepository {
     );
   }
 
-  async equip({ userId, categoryId, skinId }) {
-    await db.query(
-      `INSERT INTO user_equipped_skins (user_id, category_id, skin_id, updated_at)
-       VALUES ($1, $2, $3, NOW())
-       ON CONFLICT (user_id, category_id) DO UPDATE SET skin_id = $3, updated_at = NOW()`,
-      [userId, categoryId, skinId ?? null]
-    );
+  // skinId = null снимает текущий образ (ничего не надето).
+  async equip(userId, skinId) {
+    await db.query('UPDATE users SET equipped_skin_id = $1 WHERE id = $2', [skinId, userId]);
   }
 
   async findEquipped(userId) {
     const { rows } = await db.query(
-      `SELECT ues.category_id, sc.slug AS category_slug, sc.name AS category_name,
-              s.id AS skin_id, s.name AS skin_name, s.image_url
-       FROM user_equipped_skins ues
-       JOIN skin_categories sc ON sc.id = ues.category_id
-       LEFT JOIN skins s ON s.id = ues.skin_id
-       WHERE ues.user_id = $1`,
+      `SELECT s.*
+       FROM users u
+       JOIN skins s ON s.id = u.equipped_skin_id
+       WHERE u.id = $1`,
       [userId]
     );
-    return rows;
+    return rows[0] ?? null;
   }
 
-  async createSkin({ id, categoryId, name, description, imageUrl, priceFoxes, levelReq, expBonus }) {
+  async createSkin({ id, name, description, imageUrl, priceFoxes, levelReq, expBonus }) {
     const { rows } = await db.query(
-      `INSERT INTO skins (id, category_id, name, description, image_url, price_foxes, level_req, exp_bonus)
-       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
-      [id, categoryId, name, description, imageUrl, priceFoxes, levelReq, expBonus ?? 0]
+      `INSERT INTO skins (id, name, description, image_url, price_foxes, level_req, exp_bonus)
+       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
+      [id, name, description, imageUrl, priceFoxes, levelReq, expBonus ?? 0]
     );
     return rows[0];
   }

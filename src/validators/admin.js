@@ -64,7 +64,6 @@ const updateShopItemSchema = [
 ];
 
 const createSkinSchema = [
-  body('category_id').isUUID().withMessage('Неверный ID категории'),
   body('name').trim().notEmpty().withMessage('Название обязательно'),
   body('price_foxes').isInt({ min: 0 }).withMessage('Цена должна быть неотрицательной'),
   body('exp_bonus').optional().isInt({ min: 0 }).withMessage('exp_bonus должен быть неотрицательным'),

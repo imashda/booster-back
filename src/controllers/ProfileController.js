@@ -15,8 +15,8 @@ class ProfileController {
     res.json({ success: true, data });
   }
 
-  async getEquippedSkins(req, res) {
-    const data = await skinService.getEquippedSkins(req.user.id);
+  async getEquippedSkin(req, res) {
+    const data = await skinService.getEquippedSkin(req.user.id);
     res.json({ success: true, data });
   }
 
