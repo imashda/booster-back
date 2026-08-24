@@ -83,6 +83,20 @@ class AdminController {
     res.json({ success: true, data });
   }
 
+  async updateQuestion(req, res) {
+    const { question, option_a, option_b, option_c, option_d, correct, category, difficulty, is_active } = req.body;
+    const data = await quizService.updateQuestion(req.params.id, {
+      question, optionA: option_a, optionB: option_b, optionC: option_c, optionD: option_d,
+      correct, category, difficulty, isActive: is_active,
+    });
+    res.json({ success: true, data });
+  }
+
+  async deleteQuestion(req, res) {
+    await quizService.deleteQuestion(req.params.id);
+    res.json({ success: true, message: 'Вопрос удалён' });
+  }
+
   async createShopItem(req, res) {
     const { name, description, image_url, price_foxes, whatsapp_link, category } = req.body;
     const data = await shopService.createItem({
@@ -118,6 +132,11 @@ class AdminController {
       imageUrl: image_url, priceFoxes: price_foxes, levelReq: level_req, expBonus: exp_bonus, isActive: is_active,
     });
     res.json({ success: true, data });
+  }
+
+  async deleteShopItem(req, res) {
+    await shopService.deleteItem(req.params.id);
+    res.json({ success: true, message: 'Товар удалён' });
   }
 
   async updateHouseLevelPrice(req, res) {

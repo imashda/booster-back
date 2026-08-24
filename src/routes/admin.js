@@ -15,49 +15,59 @@ const {
   grantExpSchema,
   resetPasswordSchema,
   createQuestionSchema,
+  updateQuestionSchema,
+  deleteQuestionSchema,
   scheduleQuizSchema,
   createShopItemSchema,
   updateShopItemSchema,
+  deleteShopItemSchema,
   createSkinSchema,
   updateSkinSchema,
   updateHouseLevelPriceSchema,
 } = require('../validators/admin');
 
 const router = Router();
-router.use(authenticate, requireAdmin);
 
+// authenticate/requireAdmin — per-route, не router.use(...) на весь роутер: этот роутер смонтирован
+// на '/admin' и ловит вообще любой путь под ним, не только реально существующие эндпоинты. Блочная
+// проверка отрабатывала бы даже для несуществующих путей ДО того, как Express проверит, есть ли
+// такой роут — неавторизованный запрос на опечатку в URL получал бы 401 вместо честного 404.
+const auth = [authenticate, requireAdmin];
 const h = (fn) => asyncHandler(fn.bind(adminCtrl));
 
 // Dashboard
-router.get('/dashboard', h(adminCtrl.getDashboardStats));
+router.get('/dashboard', ...auth, h(adminCtrl.getDashboardStats));
 
 // Registrations
-router.get('/registrations',                         h(adminCtrl.getRegistrationRequests));
-router.post('/registrations/:id/approve', approveRegistrationSchema, validate, h(adminCtrl.approveRegistration));
-router.post('/registrations/:id/reject',  rejectRegistrationSchema,  validate, h(adminCtrl.rejectRegistration));
+router.get('/registrations',                         ...auth, h(adminCtrl.getRegistrationRequests));
+router.post('/registrations/:id/approve', ...auth, approveRegistrationSchema, validate, h(adminCtrl.approveRegistration));
+router.post('/registrations/:id/reject',  ...auth, rejectRegistrationSchema,  validate, h(adminCtrl.rejectRegistration));
 
 // Users
-router.get('/users',                        h(adminCtrl.getUsers));
-router.post('/users',            createUserSchema,       validate, h(adminCtrl.createUser));
-router.patch('/users/:id/status', updateUserStatusSchema, validate, h(adminCtrl.updateUserStatus));
-router.post('/users/:id/grant-foxes', grantFoxesSchema, validate, h(adminCtrl.grantFoxes));
-router.post('/users/:id/grant-exp',   grantExpSchema,   validate, h(adminCtrl.grantExp));
-router.post('/users/:id/reset-password', resetPasswordSchema, validate, h(adminCtrl.resetPassword));
+router.get('/users',                        ...auth, h(adminCtrl.getUsers));
+router.post('/users',            ...auth, createUserSchema,       validate, h(adminCtrl.createUser));
+router.patch('/users/:id/status', ...auth, updateUserStatusSchema, validate, h(adminCtrl.updateUserStatus));
+router.post('/users/:id/grant-foxes', ...auth, grantFoxesSchema, validate, h(adminCtrl.grantFoxes));
+router.post('/users/:id/grant-exp',   ...auth, grantExpSchema,   validate, h(adminCtrl.grantExp));
+router.post('/users/:id/reset-password', ...auth, resetPasswordSchema, validate, h(adminCtrl.resetPassword));
 
 // Quiz
-router.get('/quiz/questions',   h(adminCtrl.getQuestions));
-router.post('/quiz/questions',  createQuestionSchema, validate, h(adminCtrl.createQuestion));
-router.post('/quiz/schedule',   scheduleQuizSchema,   validate, h(adminCtrl.scheduleQuiz));
+router.get('/quiz/questions',        ...auth, h(adminCtrl.getQuestions));
+router.post('/quiz/questions',       ...auth, createQuestionSchema, validate, h(adminCtrl.createQuestion));
+router.put('/quiz/questions/:id',    ...auth, updateQuestionSchema, validate, h(adminCtrl.updateQuestion));
+router.delete('/quiz/questions/:id', ...auth, deleteQuestionSchema, validate, h(adminCtrl.deleteQuestion));
+router.post('/quiz/schedule',        ...auth, scheduleQuizSchema,   validate, h(adminCtrl.scheduleQuiz));
 
 // Shop
-router.post('/shop/items',      createShopItemSchema, validate, h(adminCtrl.createShopItem));
-router.put('/shop/items/:id',   updateShopItemSchema, validate, h(adminCtrl.updateShopItem));
+router.post('/shop/items',      ...auth, createShopItemSchema, validate, h(adminCtrl.createShopItem));
+router.put('/shop/items/:id',   ...auth, updateShopItemSchema, validate, h(adminCtrl.updateShopItem));
+router.delete('/shop/items/:id', ...auth, deleteShopItemSchema, validate, h(adminCtrl.deleteShopItem));
 
 // Skins
-router.post('/skins',     createSkinSchema, validate, h(adminCtrl.createSkin));
-router.put('/skins/:id',  updateSkinSchema, validate, h(adminCtrl.updateSkin));
+router.post('/skins',     ...auth, createSkinSchema, validate, h(adminCtrl.createSkin));
+router.put('/skins/:id',  ...auth, updateSkinSchema, validate, h(adminCtrl.updateSkin));
 
 // House levels
-router.patch('/house-levels/:level/price', updateHouseLevelPriceSchema, validate, h(adminCtrl.updateHouseLevelPrice));
+router.patch('/house-levels/:level/price', ...auth, updateHouseLevelPriceSchema, validate, h(adminCtrl.updateHouseLevelPrice));
 
 module.exports = router;

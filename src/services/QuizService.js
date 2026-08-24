@@ -140,6 +140,37 @@ class QuizService {
     return quizRepo.listQuestions({ category, limit, offset });
   }
 
+  async updateQuestion(id, data) {
+    const question = await quizRepo.updateQuestion(id, data);
+    if (!question) throw new NotFoundError('Вопрос не найден');
+    return question;
+  }
+
+  // Запрещаем удаление, если вопрос где-то используется — иначе либо БД заблокирует запрос
+  // FK-ошибкой (для истории ответов), либо, для расписания, была бы возможность оставить
+  // "висячую" ссылку на дату будущего квиза. Деактивация (is_active: false) — безопасная
+  // альтернатива, которая ничего не ломает и не трогает уже существующие связи.
+  async deleteQuestion(id) {
+    const [answerCount, scheduleCount] = await Promise.all([
+      quizRepo.countAnswerUsage(id),
+      quizRepo.countScheduleUsage(id),
+    ]);
+
+    if (answerCount > 0) {
+      throw new ConflictError(
+        'Нельзя удалить вопрос: на него уже есть ответы учеников. Используйте PUT с { "is_active": false }, чтобы скрыть его без потери истории.'
+      );
+    }
+    if (scheduleCount > 0) {
+      throw new ConflictError(
+        'Нельзя удалить вопрос: он запланирован в квизе на одну или несколько дат. Сначала замените его в расписании через POST /api/admin/quiz/schedule, либо используйте { "is_active": false }.'
+      );
+    }
+
+    const deleted = await quizRepo.deleteQuestion(id);
+    if (!deleted) throw new NotFoundError('Вопрос не найден');
+  }
+
   async scheduleQuestions(date, questionIds) {
     return quizRepo.replaceSchedule(date, questionIds);
   }

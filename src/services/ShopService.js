@@ -5,7 +5,7 @@ const { getClient } = require('../config/database');
 const shopRepo = require('../repositories/ShopRepository');
 const userRepo = require('../repositories/UserRepository');
 const walletService = require('./WalletService');
-const { NotFoundError, BadRequestError } = require('../domain/errors');
+const { NotFoundError, BadRequestError, ConflictError } = require('../domain/errors');
 const { TRANSACTION_TYPES } = require('../constants');
 
 class ShopService {
@@ -62,6 +62,20 @@ class ShopService {
     const item = await shopRepo.updateItem(id, data);
     if (!item) throw new NotFoundError('Товар не найден');
     return item;
+  }
+
+  // Запрещаем удаление, если по товару уже есть заявки — иначе история заказов ссылалась бы
+  // на несуществующий товар. is_active: false — безопасная альтернатива, ничего не теряет.
+  async deleteItem(id) {
+    const orderCount = await shopRepo.countOrderUsage(id);
+    if (orderCount > 0) {
+      throw new ConflictError(
+        'Нельзя удалить товар: по нему уже есть заявки учеников. Используйте PUT с { "is_active": false }, чтобы скрыть его без потери истории.'
+      );
+    }
+
+    const deleted = await shopRepo.deleteItem(id);
+    if (!deleted) throw new NotFoundError('Товар не найден');
   }
 }
 

@@ -18,22 +18,6 @@ async function seed() {
     `, [uuidv4(), adminPasswordHash]);
     console.log('✅ Admin user created (login: 77000000000, pass: Admin2025!)');
 
-    // ── Skin Categories ─────────────────────────────────────
-    const skinCategories = [
-      { slug: 'top',        name: 'Верхняя одежда', sort: 1 },
-      { slug: 'pants',      name: 'Штаны',          sort: 2 },
-      { slug: 'shoes',      name: 'Обувь',          sort: 3 },
-      { slug: 'accessories',name: 'Аксессуары',     sort: 4 },
-      { slug: 'headwear',   name: 'Головные уборы', sort: 5 },
-    ];
-    for (const cat of skinCategories) {
-      await client.query(`
-        INSERT INTO skin_categories (id, slug, name, sort_order)
-        VALUES ($1, $2, $3, $4) ON CONFLICT (slug) DO NOTHING
-      `, [uuidv4(), cat.slug, cat.name, cat.sort]);
-    }
-    console.log('✅ Skin categories seeded');
-
     // ── Mini Games ──────────────────────────────────────────
     // 10 FOX за игру, лимит 100 FOX/день (DAILY_GAMES_FOX_LIMIT) = максимум 10 засчитанных игр в день.
     // 'runner' помечен is_active=false — в интерфейсе он показан как "Скоро", ещё не готов.

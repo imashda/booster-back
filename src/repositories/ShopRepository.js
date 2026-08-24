@@ -57,6 +57,16 @@ class ShopRepository {
     );
     return parseInt(rows[0].count, 10);
   }
+
+  async countOrderUsage(itemId) {
+    const { rows } = await db.query('SELECT COUNT(*) FROM shop_orders WHERE item_id = $1', [itemId]);
+    return parseInt(rows[0].count, 10);
+  }
+
+  async deleteItem(id) {
+    const { rowCount } = await db.query('DELETE FROM shop_items WHERE id = $1', [id]);
+    return rowCount > 0;
+  }
 }
 
 module.exports = new ShopRepository();

@@ -73,6 +73,34 @@ class QuizRepository {
     return rows;
   }
 
+  // Partial update: any field omitted (undefined -> NULL param) keeps its current DB value via COALESCE.
+  async updateQuestion(id, { question, optionA, optionB, optionC, optionD, correct, category, difficulty, isActive }) {
+    const { rows } = await db.query(
+      `UPDATE quiz_questions
+       SET question=COALESCE($1, question), option_a=COALESCE($2, option_a), option_b=COALESCE($3, option_b),
+           option_c=COALESCE($4, option_c), option_d=COALESCE($5, option_d), correct=COALESCE($6, correct),
+           category=COALESCE($7, category), difficulty=COALESCE($8, difficulty), is_active=COALESCE($9, is_active)
+       WHERE id=$10 RETURNING *`,
+      [question, optionA, optionB, optionC, optionD, correct, category, difficulty, isActive, id]
+    );
+    return rows[0] ?? null;
+  }
+
+  async countScheduleUsage(id) {
+    const { rows } = await db.query('SELECT COUNT(*) FROM daily_quiz_schedule WHERE question_id = $1', [id]);
+    return parseInt(rows[0].count, 10);
+  }
+
+  async countAnswerUsage(id) {
+    const { rows } = await db.query('SELECT COUNT(*) FROM quiz_answers WHERE question_id = $1', [id]);
+    return parseInt(rows[0].count, 10);
+  }
+
+  async deleteQuestion(id) {
+    const { rowCount } = await db.query('DELETE FROM quiz_questions WHERE id = $1', [id]);
+    return rowCount > 0;
+  }
+
   // Заменяет весь квиз дня целиком (до 5 вопросов, по порядку position=1..n).
   async replaceSchedule(date, questionIds) {
     const client = await getClient();

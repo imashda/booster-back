@@ -44,6 +44,19 @@ const createQuestionSchema = [
   body('correct').isIn(['a', 'b', 'c', 'd']).withMessage('Ответ должен быть a, b, c или d'),
 ];
 
+const updateQuestionSchema = [
+  uuidParam,
+  body('question').optional().trim().notEmpty().withMessage('Вопрос не может быть пустым'),
+  body('option_a').optional().trim().notEmpty().withMessage('option_a не может быть пустым'),
+  body('option_b').optional().trim().notEmpty().withMessage('option_b не может быть пустым'),
+  body('option_c').optional().trim().notEmpty().withMessage('option_c не может быть пустым'),
+  body('option_d').optional().trim().notEmpty().withMessage('option_d не может быть пустым'),
+  body('correct').optional().isIn(['a', 'b', 'c', 'd']).withMessage('Ответ должен быть a, b, c или d'),
+  body('is_active').optional().isBoolean().withMessage('is_active должен быть true/false'),
+];
+
+const deleteQuestionSchema = [uuidParam];
+
 const scheduleQuizSchema = [
   body('quiz_date').isDate().withMessage('Неверный формат даты'),
   body('question_ids').isArray({ min: 1, max: 5 }).withMessage('question_ids — массив от 1 до 5 ID вопросов'),
@@ -78,6 +91,8 @@ const updateSkinSchema = [
   body('is_active').optional().isBoolean().withMessage('is_active должен быть true/false'),
 ];
 
+const deleteShopItemSchema = [uuidParam];
+
 const updateHouseLevelPriceSchema = [
   param('level').isInt({ min: 1, max: 50 }).withMessage('level: число от 1 до 50'),
   // null явно снимает цену (уровень становится непокупаемым, только через EXP)
@@ -93,9 +108,12 @@ module.exports = {
   grantExpSchema,
   resetPasswordSchema,
   createQuestionSchema,
+  updateQuestionSchema,
+  deleteQuestionSchema,
   scheduleQuizSchema,
   createShopItemSchema,
   updateShopItemSchema,
+  deleteShopItemSchema,
   createSkinSchema,
   updateSkinSchema,
   updateHouseLevelPriceSchema,
