@@ -130,13 +130,29 @@ async function seed() {
       'Вселенная Лис', 'Мультивселенная', 'Измерение Лис', 'Бесконечность', 'Легенда',
       'Мифос', 'Бог Лис', 'Избранный', 'Мастер Лис', 'Чемпион Booster',
     ];
+    // Цена покупки уровня за FOX — столбец «Цена» листа «Дом» таблицы «Игра Booster».
+    // Без неё price_foxes оставался NULL, а это на бэке значит «уровень нельзя
+    // купить, только заработать EXP»: в игре модалка показывала цену 0 FOX, а
+    // покупка падала с 400. Индекс 0 = уровень 1 (стартовый, не покупается).
+    const housePrices = [
+      0, 100, 150, 150, 150, 150, 200, 200, 200, 200,
+      250, 250, 300, 300, 350, 350, 400, 450, 450, 500,
+      550, 600, 650, 700, 750, 800, 850, 950, 1000, 1100,
+      1200, 1300, 1400, 1550, 1650, 1800, 1950, 2100, 2250, 2450,
+      2650, 2900, 3150, 3400, 3650, 4000, 4300, 4750, 5050, 5450,
+    ];
     for (let i = 1; i <= 50; i++) {
+      // DO UPDATE ... WHERE price_foxes IS NULL — дозаполняем цену на уже
+      // засеянных базах, но не затираем то, что админ выставил руками через
+      // PATCH /api/admin/house-levels/:level/price.
       await client.query(`
-        INSERT INTO house_levels (level, name, exp_required)
-        VALUES ($1, $2, $3) ON CONFLICT (level) DO NOTHING
-      `, [i, houseNames[i - 1], expPerLevel[i - 1]]);
+        INSERT INTO house_levels (level, name, exp_required, price_foxes)
+        VALUES ($1, $2, $3, $4)
+        ON CONFLICT (level) DO UPDATE SET price_foxes = EXCLUDED.price_foxes
+        WHERE house_levels.price_foxes IS NULL
+      `, [i, houseNames[i - 1], expPerLevel[i - 1], housePrices[i - 1]]);
     }
-    console.log('✅ 50 house levels seeded');
+    console.log('✅ 50 house levels seeded (with FOX prices)');
 
     // ── Sample Quiz Questions ───────────────────────────────
     const questions = [
