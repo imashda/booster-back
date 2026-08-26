@@ -84,7 +84,7 @@ async function seed() {
       const { rowCount } = await client.query(`
         INSERT INTO skins (id, category_id, slug, name, price_foxes, level_req, exp_bonus)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (slug) DO NOTHING
+        ON CONFLICT (slug) WHERE slug IS NOT NULL DO NOTHING
       `, [uuidv4(), outfitCat.id, `set_${set.n}`, set.name, set.price, 1, set.levelBonus * 500]);
       insertedCount += rowCount;
     }
