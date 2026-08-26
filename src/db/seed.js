@@ -75,18 +75,20 @@ async function seed() {
       { n: 29, name: 'Полицейский',   price: 3250, levelBonus: 5 },
       { n: 30, name: 'Легендарный',   price: 3600, levelBonus: 6 },
     ];
-    const { rows: [{ count: existingSkins }] } = await client.query('SELECT COUNT(*) FROM skins');
-    if (Number(existingSkins) === 0) {
-      for (const set of outfitSets) {
-        await client.query(`
-          INSERT INTO skins (id, category_id, slug, name, price_foxes, level_req, exp_bonus)
-          VALUES ($1, $2, $3, $4, $5, $6, $7)
-        `, [uuidv4(), outfitCat.id, `set_${set.n}`, set.name, set.price, 1, set.levelBonus * 500]);
-      }
-      console.log('✅ Skins seeded (30 outfit sets)');
-    } else {
-      console.log('↷ Skins already present, skipped');
+    // ON CONFLICT (slug) — идемпотентно per-скин, а не по общему числу строк в
+    // таблице: раньше проверка "есть хоть один скин" блокировала весь досев,
+    // если в базе уже была хоть одна ЧУЖАЯ запись (например, добавленная
+    // вручную через админку), даже если ни одного из наших 30 ещё не было.
+    let insertedCount = 0;
+    for (const set of outfitSets) {
+      const { rowCount } = await client.query(`
+        INSERT INTO skins (id, category_id, slug, name, price_foxes, level_req, exp_bonus)
+        VALUES ($1, $2, $3, $4, $5, $6, $7)
+        ON CONFLICT (slug) DO NOTHING
+      `, [uuidv4(), outfitCat.id, `set_${set.n}`, set.name, set.price, 1, set.levelBonus * 500]);
+      insertedCount += rowCount;
     }
+    console.log(`✅ Skins seeded (${insertedCount} new, ${outfitSets.length - insertedCount} already present)`);
 
     // ── Mini Games ──────────────────────────────────────────
     // 10 FOX за игру, лимит 100 FOX/день (DAILY_GAMES_FOX_LIMIT) = максимум 10 засчитанных игр в день.
