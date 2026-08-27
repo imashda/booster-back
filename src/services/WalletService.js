@@ -51,6 +51,30 @@ class WalletService {
     });
   }
 
+  /**
+   * Начислить EXP, которого ровно хватит на +N уровней ОТ ТЕКУЩЕГО.
+   *
+   * Столбец «Прибавка к уровню» в таблице — это именно уровни, а не опыт.
+   * Фиксированный курс (например 500 EXP за уровень) работает только внизу
+   * шкалы: порог растёт с 500 EXP на 1-м уровне до 10100 на 49-м, поэтому
+   * на высоких уровнях такой грант не давал вообще ничего.
+   *
+   * Уровень остаётся производной от EXP — мы не выставляем его напрямую,
+   * а доначисляем опыт до порога нужного уровня.
+   */
+  async grantLevels(userId, levels, type, description, referenceId = null, externalClient = null) {
+    return this._withClient(externalClient, async (client) => {
+      const current = await walletRepo.lockUserExp(client, userId);
+      if (!current) throw new NotFoundError('Пользователь не найден');
+
+      const target = await walletRepo.findLevel(current.level + levels);
+      // Цели нет — упёрлись в максимальный уровень, начислять нечего
+      const expNeeded = target ? Math.max(0, target.exp_required - current.exp) : 0;
+
+      return this.changeExp(userId, expNeeded, type, description, referenceId, client);
+    });
+  }
+
   async getTransactionHistory(userId, type, limit, offset) {
     return walletRepo.findTransactions(userId, type, limit, offset);
   }

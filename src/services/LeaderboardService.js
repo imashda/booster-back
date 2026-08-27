@@ -7,10 +7,6 @@ const walletService = require('./WalletService');
 const { NotFoundError, BadRequestError } = require('../domain/errors');
 const { TRANSACTION_TYPES } = require('../constants');
 
-// Курс перевода «прибавки к уровню» из таблицы в EXP. Тот же, что для скинов
-// в seed.js — уровень персонажа везде остаётся производной от опыта.
-const EXP_PER_LEVEL_BONUS = 500;
-
 class LeaderboardService {
   async getLeaderboard(userId) {
     const [leaderboard, myRank, me] = await Promise.all([
@@ -59,11 +55,11 @@ class LeaderboardService {
       await walletRepo.setHouseLevel(client, userId, nextLevel.level);
 
       // Столбец «Прибавка к уровню» листа «Дом»: покупка дома даёт ещё и уровни
-      // ПЕРСОНАЖА. Уровень персонажа считается из EXP, поэтому переводим бонус в
-      // опыт тем же курсом, что и у скинов (1 уровень ≈ 500 EXP).
-      const expBonus = (nextLevel.level_bonus ?? 1) * EXP_PER_LEVEL_BONUS;
-      const expResult = await walletService.changeExp(
-        userId, expBonus, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
+      // ПЕРСОНАЖА. Начисляем ровно столько EXP, сколько нужно на эти уровни от
+      // текущего — фиксированный курс не работал: порог уровня растёт с 500 EXP
+      // до 10100, и на высоких уровнях прибавка не давала ничего.
+      const expResult = await walletService.grantLevels(
+        userId, nextLevel.level_bonus ?? 1, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
       );
 
       await client.query('COMMIT');

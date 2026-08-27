@@ -232,6 +232,11 @@ CREATE TABLE IF NOT EXISTS skins (
 
 ALTER TABLE skins ADD COLUMN IF NOT EXISTS exp_bonus INTEGER NOT NULL DEFAULT 0;
 ALTER TABLE skins ADD COLUMN IF NOT EXISTS slug VARCHAR(100);
+-- Столбец «Прибавка к уровню» листа «Гардероб»: сколько уровней ПЕРСОНАЖА даёт
+-- покупка. Это уровни, а не опыт — сколько EXP под них нужно, зависит от того,
+-- на каком уровне игрок сейчас (см. WalletService.grantLevels).
+-- exp_bonus остаётся для скинов, которым админ задаёт опыт напрямую.
+ALTER TABLE skins ADD COLUMN IF NOT EXISTS level_bonus INTEGER NOT NULL DEFAULT 0;
 CREATE UNIQUE INDEX IF NOT EXISTS uq_skins_slug ON skins(slug) WHERE slug IS NOT NULL;
 
 CREATE INDEX IF NOT EXISTS idx_skins_category ON skins(category_id);

@@ -61,8 +61,16 @@ class SkinService {
         TRANSACTION_TYPES.SKIN_PURCHASE, `Покупка скина: ${skin.name}`, purchaseId, client
       );
 
+      // level_bonus — «Прибавка к уровню» из таблицы (в УРОВНЯХ): сколько это
+      // EXP, зависит от текущего уровня игрока, поэтому считаем на месте.
+      // exp_bonus — сырой опыт, остаётся для скинов, заведённых админом вручную.
       let expResult = null;
-      if (skin.exp_bonus > 0) {
+      if (skin.level_bonus > 0) {
+        expResult = await walletService.grantLevels(
+          userId, skin.level_bonus,
+          TRANSACTION_TYPES.SKIN_PURCHASE, `Бонус за покупку скина: ${skin.name}`, purchaseId, client
+        );
+      } else if (skin.exp_bonus > 0) {
         expResult = await walletService.changeExp(
           userId, skin.exp_bonus,
           TRANSACTION_TYPES.SKIN_PURCHASE, `Бонус за покупку скина: ${skin.name}`, purchaseId, client
@@ -74,7 +82,8 @@ class SkinService {
       return {
         skinId,
         newFoxesBalance: foxResult.newBalance,
-        expBonus: skin.exp_bonus,
+        levelBonus: skin.level_bonus,
+        expBonus: expResult ? expResult.newExp - expResult.previousExp : 0,
         newExp: expResult?.newExp,
         leveledUp: expResult?.leveledUp,
         newLevel: expResult?.newLevel,

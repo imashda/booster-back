@@ -36,10 +36,12 @@ async function seed() {
     console.log('✅ Skin categories seeded');
 
     // ── Skins (30 целых образов, картинки — во фронте по slug) ─
-    // Названия/цены — из исходного мока (OUTFIT_SETS), levelBonus мока
-    // переведён в exp_bonus как levelBonus*500 (примерная EXP-цена уровня
-    // по таблице house_levels). set_1 бесплатный и без EXP-бонуса — как
-    // раньше это был стартовый образ, а не "покупка ради профита".
+    // Названия/цены/прибавки — лист «Гардероб» таблицы «Игра Booster».
+    // levelBonus пишем в skins.level_bonus как УРОВНИ: сколько это будет EXP,
+    // считается при покупке от текущего уровня игрока. set_1 бесплатный и без
+    // прибавки — это стартовый образ, а не "покупка ради профита".
+    // DO UPDATE — чтобы базы, засеянные старой версией (где прибавка лежала
+    // в exp_bonus как levelBonus*500), перешли на новую модель.
     const { rows: [outfitCat] } = await client.query(
       "SELECT id FROM skin_categories WHERE slug = 'outfit'"
     );
@@ -82,10 +84,11 @@ async function seed() {
     let insertedCount = 0;
     for (const set of outfitSets) {
       const { rowCount } = await client.query(`
-        INSERT INTO skins (id, category_id, slug, name, price_foxes, level_req, exp_bonus)
+        INSERT INTO skins (id, category_id, slug, name, price_foxes, level_req, level_bonus)
         VALUES ($1, $2, $3, $4, $5, $6, $7)
-        ON CONFLICT (slug) WHERE slug IS NOT NULL DO NOTHING
-      `, [uuidv4(), outfitCat.id, `set_${set.n}`, set.name, set.price, 1, set.levelBonus * 500]);
+        ON CONFLICT (slug) WHERE slug IS NOT NULL
+        DO UPDATE SET level_bonus = EXCLUDED.level_bonus, exp_bonus = 0
+      `, [uuidv4(), outfitCat.id, `set_${set.n}`, set.name, set.price, 1, set.levelBonus]);
       insertedCount += rowCount;
     }
     console.log(`✅ Skins seeded (${insertedCount} new, ${outfitSets.length - insertedCount} already present)`);
