@@ -7,6 +7,10 @@ const walletService = require('./WalletService');
 const { NotFoundError, BadRequestError } = require('../domain/errors');
 const { TRANSACTION_TYPES } = require('../constants');
 
+// Курс перевода «прибавки к уровню» из таблицы в EXP. Тот же, что для скинов
+// в seed.js — уровень персонажа везде остаётся производной от опыта.
+const EXP_PER_LEVEL_BONUS = 500;
+
 class LeaderboardService {
   async getLeaderboard(userId) {
     const [leaderboard, myRank, me] = await Promise.all([
@@ -34,8 +38,8 @@ class LeaderboardService {
       const user = await walletRepo.lockUser(client, userId);
       if (!user) throw new NotFoundError('Пользователь не найден');
 
-      const nextLevel = await walletRepo.findLevel(user.level + 1);
-      if (!nextLevel) throw new BadRequestError('Вы уже на максимальном уровне');
+      const nextLevel = await walletRepo.findLevel(user.house_level + 1);
+      if (!nextLevel) throw new BadRequestError('Вы уже на максимальном уровне дома');
       if (nextLevel.price_foxes == null) {
         throw new BadRequestError('Этот уровень нельзя купить за Фоксы — только заработать');
       }
@@ -45,14 +49,21 @@ class LeaderboardService {
         );
       }
 
-      const expNeeded = Math.max(0, nextLevel.exp_required - user.exp);
       const description = `Покупка уровня дома: ${nextLevel.name}`;
 
       const foxResult = await walletService.changeFoxes(
         userId, -nextLevel.price_foxes, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
       );
+
+      // Дом двигаем напрямую — он больше не производная от EXP.
+      await walletRepo.setHouseLevel(client, userId, nextLevel.level);
+
+      // Столбец «Прибавка к уровню» листа «Дом»: покупка дома даёт ещё и уровни
+      // ПЕРСОНАЖА. Уровень персонажа считается из EXP, поэтому переводим бонус в
+      // опыт тем же курсом, что и у скинов (1 уровень ≈ 500 EXP).
+      const expBonus = (nextLevel.level_bonus ?? 1) * EXP_PER_LEVEL_BONUS;
       const expResult = await walletService.changeExp(
-        userId, expNeeded, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
+        userId, expBonus, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
       );
 
       await client.query('COMMIT');
@@ -61,6 +72,7 @@ class LeaderboardService {
         houseName: nextLevel.name,
         foxesSpent: nextLevel.price_foxes,
         newFoxesBalance: foxResult.newBalance,
+        newHouseLevel: nextLevel.level,
         newExp: expResult.newExp,
         newLevel: expResult.newLevel,
       };

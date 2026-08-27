@@ -130,6 +130,17 @@ async function seed() {
       'Вселенная Лис', 'Мультивселенная', 'Измерение Лис', 'Бесконечность', 'Легенда',
       'Мифос', 'Бог Лис', 'Избранный', 'Мастер Лис', 'Чемпион Booster',
     ];
+    // Столбец «Прибавка к уровню» листа «Дом»: 1–9 -> +1, 10–19 -> +2, 20–29 -> +3,
+    // 30–39 -> +4, 40–49 -> +5, 50 -> +6. Это уровни ПЕРСОНАЖА, не дома.
+    const houseLevelBonus = (lvl) => {
+      if (lvl >= 50) return 6;
+      if (lvl >= 40) return 5;
+      if (lvl >= 30) return 4;
+      if (lvl >= 20) return 3;
+      if (lvl >= 10) return 2;
+      return 1;
+    };
+
     // Цена покупки уровня за FOX — столбец «Цена» листа «Дом» таблицы «Игра Booster».
     // Без неё price_foxes оставался NULL, а это на бэке значит «уровень нельзя
     // купить, только заработать EXP»: в игре модалка показывала цену 0 FOX, а
@@ -146,11 +157,12 @@ async function seed() {
       // засеянных базах, но не затираем то, что админ выставил руками через
       // PATCH /api/admin/house-levels/:level/price.
       await client.query(`
-        INSERT INTO house_levels (level, name, exp_required, price_foxes)
-        VALUES ($1, $2, $3, $4)
-        ON CONFLICT (level) DO UPDATE SET price_foxes = EXCLUDED.price_foxes
+        INSERT INTO house_levels (level, name, exp_required, price_foxes, level_bonus)
+        VALUES ($1, $2, $3, $4, $5)
+        ON CONFLICT (level) DO UPDATE
+        SET price_foxes = EXCLUDED.price_foxes, level_bonus = EXCLUDED.level_bonus
         WHERE house_levels.price_foxes IS NULL
-      `, [i, houseNames[i - 1], expPerLevel[i - 1], housePrices[i - 1]]);
+      `, [i, houseNames[i - 1], expPerLevel[i - 1], housePrices[i - 1], houseLevelBonus(i)]);
     }
     console.log('✅ 50 house levels seeded (with FOX prices)');
 

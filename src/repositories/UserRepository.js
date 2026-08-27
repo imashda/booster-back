@@ -5,7 +5,7 @@ const db = require('../config/database');
 class UserRepository {
   async findById(id) {
     const { rows } = await db.query(
-      `SELECT id, login, full_name, grade, role, status, foxes, exp, level
+      `SELECT id, login, full_name, grade, role, status, foxes, exp, level, house_level
        FROM users WHERE id = $1`,
       [id]
     );
@@ -14,7 +14,7 @@ class UserRepository {
 
   async findByLogin(login) {
     const { rows } = await db.query(
-      `SELECT id, login, password_hash, full_name, grade, role, status, foxes, exp, level, avatar_url
+      `SELECT id, login, password_hash, full_name, grade, role, status, foxes, exp, level, house_level, avatar_url
        FROM users WHERE login = $1`,
       [login]
     );
@@ -34,13 +34,15 @@ class UserRepository {
 
   async findProfile(id) {
     const { rows } = await db.query(
-      `SELECT u.id, u.login, u.full_name, u.grade, u.foxes, u.exp, u.level,
+      `SELECT u.id, u.login, u.full_name, u.grade, u.foxes, u.exp, u.level, u.house_level,
               u.avatar_url, u.created_at, u.last_login_at,
               hl.name AS house_name, hl.image_url AS house_image_url,
               hl2.exp_required AS next_level_exp,
               (SELECT COUNT(*) FROM user_skins us WHERE us.user_id = u.id) AS skins_count
        FROM users u
-       LEFT JOIN house_levels hl  ON hl.level  = u.level
+       -- дом берём по house_level (что куплено), а порог следующего уровня —
+       -- по level (сколько EXP до следующего уровня ПЕРСОНАЖА)
+       LEFT JOIN house_levels hl  ON hl.level  = u.house_level
        LEFT JOIN house_levels hl2 ON hl2.level = u.level + 1
        WHERE u.id = $1`,
       [id]
@@ -50,13 +52,13 @@ class UserRepository {
 
   async findHouseProgress(id) {
     const { rows } = await db.query(
-      `SELECT u.level, u.exp,
+      `SELECT u.house_level AS level, u.exp,
               hl.name, hl.image_url, hl.description, hl.exp_required,
               hl2.level AS next_level, hl2.exp_required AS next_level_exp, hl2.name AS next_level_name,
               hl2.price_foxes AS next_level_price_foxes
        FROM users u
-       JOIN house_levels hl ON hl.level = u.level
-       LEFT JOIN house_levels hl2 ON hl2.level = u.level + 1
+       JOIN house_levels hl ON hl.level = u.house_level
+       LEFT JOIN house_levels hl2 ON hl2.level = u.house_level + 1
        WHERE u.id = $1`,
       [id]
     );
@@ -112,7 +114,7 @@ class UserRepository {
 
     const listParams = [...params, limit, offset];
     const { rows } = await db.query(
-      `SELECT id, login, full_name, grade, role, status, foxes, exp, level,
+      `SELECT id, login, full_name, grade, role, status, foxes, exp, level, house_level,
               parent_name, parent_phone, created_at, last_login_at
        FROM users ${where}
        ORDER BY created_at DESC LIMIT $${listParams.length - 1} OFFSET $${listParams.length}`,

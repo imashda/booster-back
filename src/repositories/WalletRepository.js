@@ -21,10 +21,19 @@ class WalletRepository {
 
   async lockUser(client, userId) {
     const { rows } = await client.query(
-      'SELECT foxes, exp, level FROM users WHERE id = $1 FOR UPDATE',
+      'SELECT foxes, exp, level, house_level FROM users WHERE id = $1 FOR UPDATE',
       [userId]
     );
     return rows[0] ?? null;
+  }
+
+  // Уровень дома двигается ТОЛЬКО отсюда (покупка за FOX), а не из пересчёта EXP —
+  // иначе квиз/игра/скин, дающие опыт, переселяли бы игрока в новый дом.
+  async setHouseLevel(client, userId, houseLevel) {
+    await client.query(
+      'UPDATE users SET house_level = $1, updated_at = NOW() WHERE id = $2',
+      [houseLevel, userId]
+    );
   }
 
   async setFoxBalance(client, userId, newBalance) {

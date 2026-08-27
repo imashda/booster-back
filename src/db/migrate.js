@@ -59,6 +59,12 @@ END $$;
 ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_name VARCHAR(255);
 ALTER TABLE users ADD COLUMN IF NOT EXISTS parent_phone VARCHAR(20);
 
+-- Уровень ДОМА на карте. Отдельно от users.level (уровень персонажа), потому что
+-- это разные вещи по дизайну игры: дом покупается за FOX и задаёт фон главного
+-- экрана, а уровень персонажа растёт от EXP (квизы, игры, бонусы скинов) и живёт
+-- в бейдже и лидерборде. Пока это было одно число, покупка скина двигала дом.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS house_level INTEGER NOT NULL DEFAULT 1;
+
 CREATE INDEX IF NOT EXISTS idx_users_login ON users(login);
 CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 CREATE INDEX IF NOT EXISTS idx_users_exp ON users(exp DESC);
@@ -341,6 +347,9 @@ CREATE TABLE IF NOT EXISTS house_levels (
 );
 
 ALTER TABLE house_levels ADD COLUMN IF NOT EXISTS price_foxes INTEGER;
+-- Столбец «Прибавка к уровню» листа «Дом»: сколько уровней ПЕРСОНАЖА даёт покупка
+-- этого дома (в EXP переводится при покупке, см. LeaderboardService).
+ALTER TABLE house_levels ADD COLUMN IF NOT EXISTS level_bonus INTEGER NOT NULL DEFAULT 1;
 
 -- ============================================================
 -- ALPHA CRM SYNC LOG (не используется приложением — интеграция отключена)
