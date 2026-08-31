@@ -4,16 +4,11 @@ const authService = require('../services/AuthService');
 
 class AuthController {
   async register(req, res) {
-    const { full_name, grade, parent_name, parent_phone } = req.body;
+    const { full_name, grade, parent_name, parent_phone, login, password } = req.body;
     const result = await authService.register({
-      fullName: full_name, grade, parentName: parent_name, parentPhone: parent_phone,
+      fullName: full_name, grade, parentName: parent_name, parentPhone: parent_phone, login, password,
     });
     res.status(201).json({ success: true, ...result });
-  }
-
-  async registrationStatus(req, res) {
-    const data = await authService.getRegistrationStatus(req.params.id);
-    res.json({ success: true, data });
   }
 
   async login(req, res) {

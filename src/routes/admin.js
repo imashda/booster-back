@@ -7,8 +7,6 @@ const requireAdmin = require('../middleware/requireAdmin');
 const validate = require('../middleware/validate');
 const adminCtrl = require('../controllers/adminController');
 const {
-  approveRegistrationSchema,
-  rejectRegistrationSchema,
   createUserSchema,
   updateUserStatusSchema,
   grantFoxesSchema,
@@ -37,11 +35,6 @@ const h = (fn) => asyncHandler(fn.bind(adminCtrl));
 
 // Dashboard
 router.get('/dashboard', ...auth, h(adminCtrl.getDashboardStats));
-
-// Registrations
-router.get('/registrations',                         ...auth, h(adminCtrl.getRegistrationRequests));
-router.post('/registrations/:id/approve', ...auth, approveRegistrationSchema, validate, h(adminCtrl.approveRegistration));
-router.post('/registrations/:id/reject',  ...auth, rejectRegistrationSchema,  validate, h(adminCtrl.rejectRegistration));
 
 // Users
 router.get('/users',                        ...auth, h(adminCtrl.getUsers));

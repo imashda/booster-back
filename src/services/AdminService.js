@@ -1,23 +1,20 @@
 'use strict';
 
 const { v4: uuidv4 } = require('uuid');
-const { getClient } = require('../config/database');
 const userRepo = require('../repositories/UserRepository');
-const registrationRepo = require('../repositories/RegistrationRepository');
 const tokenRepo = require('../repositories/TokenRepository');
 const walletRepo = require('../repositories/WalletRepository');
 const walletService = require('./WalletService');
 const authService = require('./AuthService');
-const { NotFoundError, BadRequestError } = require('../domain/errors');
-const { REGISTRATION_STATUSES, TRANSACTION_TYPES } = require('../constants');
+const { NotFoundError } = require('../domain/errors');
+const { TRANSACTION_TYPES } = require('../constants');
 
 class AdminService {
   async getDashboardStats() {
-    const [totalStudents, activeStudents, pendingRegistrations, foxesInCirculation, quizScheduledToday, pendingOrders] =
+    const [totalStudents, activeStudents, foxesInCirculation, quizScheduledToday, pendingOrders] =
       await Promise.all([
         userRepo.countStudents(),
         userRepo.countActiveStudents(),
-        registrationRepo.countPending(),
         userRepo.sumFoxes(),
         require('../repositories/QuizRepository').isScheduledToday(),
         require('../repositories/ShopRepository').countPendingOrders(),
@@ -25,71 +22,10 @@ class AdminService {
 
     return {
       users: { total: totalStudents, active: activeStudents },
-      pendingRegistrations,
       foxesInCirculation,
       quizScheduledToday,
       pendingShopOrders: pendingOrders,
     };
-  }
-
-  async listRegistrationRequests({ status = 'pending', limit = 20, offset = 0 }) {
-    return registrationRepo.list({ status, limit: Number(limit), offset: Number(offset) });
-  }
-
-  async approveRegistration(requestId, adminId) {
-    const request = await registrationRepo.findById(requestId);
-    if (!request) throw new NotFoundError('Заявка не найдена');
-    if (request.status !== REGISTRATION_STATUSES.PENDING) {
-      throw new BadRequestError(`Заявка уже ${request.status}`);
-    }
-
-    const login = await authService.generateUniqueLogin();
-    const rawPassword = authService.generatePassword();
-    const passwordHash = await authService.hashPassword(rawPassword);
-    const newUserId = uuidv4();
-
-    // Создание пользователя и одобрение заявки — одна транзакция: иначе при сбое между
-    // шагами пользователь уже создан, а заявка навсегда останется "pending".
-    const client = await getClient();
-    try {
-      await client.query('BEGIN');
-      await userRepo.create({
-        id: newUserId,
-        login,
-        passwordHash,
-        fullName: request.full_name,
-        grade: request.grade,
-        parentName: request.parent_name,
-        parentPhone: request.parent_phone,
-      }, client);
-      await registrationRepo.approve(requestId, adminId, client);
-      await client.query('COMMIT');
-    } catch (err) {
-      await client.query('ROLLBACK');
-      throw err;
-    } finally {
-      client.release();
-    }
-
-    // Логин и пароль отдаются куратору в ответе вместе с контактом родителя — он пересылает
-    // их на WhatsApp родителя сам (автоотправки нет).
-    return {
-      userId: newUserId,
-      login,
-      rawPassword,
-      parentName: request.parent_name,
-      parentPhone: request.parent_phone,
-    };
-  }
-
-  async rejectRegistration(requestId, adminId, reason) {
-    const request = await registrationRepo.findById(requestId);
-    if (!request) throw new NotFoundError('Заявка не найдена');
-    if (request.status !== REGISTRATION_STATUSES.PENDING) {
-      throw new BadRequestError(`Заявка уже ${request.status}`);
-    }
-
-    await registrationRepo.reject(requestId, adminId, reason);
   }
 
   async listUsers(filters) {
@@ -100,8 +36,8 @@ class AdminService {
     });
   }
 
-  // Прямое создание пользователя админом, минуя очередь заявок — например, для тестовых
-  // аккаунтов. Логин генерируется так же, как при апруве заявки.
+  // Прямое создание пользователя админом (например, тестовые аккаунты) — в отличие от
+  // самостоятельной регистрации, здесь логин/пароль генерируются автоматически, не пользователем.
   async createUser({ fullName, grade, parentName, parentPhone }) {
     const normalizedParentPhone = parentPhone.replace(/\D/g, '');
     const login = await authService.generateUniqueLogin();

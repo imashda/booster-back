@@ -4,13 +4,6 @@ const { body, param } = require('express-validator');
 
 const uuidParam = param('id').isUUID().withMessage('Неверный ID');
 
-const approveRegistrationSchema = [uuidParam];
-
-const rejectRegistrationSchema = [
-  uuidParam,
-  body('reason').optional().trim(),
-];
-
 const createUserSchema = [
   body('full_name').trim().notEmpty().withMessage('ФИО ребёнка обязательно'),
   body('grade').trim().notEmpty().withMessage('Класс обязателен'),
@@ -100,8 +93,6 @@ const updateHouseLevelPriceSchema = [
 ];
 
 module.exports = {
-  approveRegistrationSchema,
-  rejectRegistrationSchema,
   createUserSchema,
   updateUserStatusSchema,
   grantFoxesSchema,

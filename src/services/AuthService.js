@@ -7,7 +7,6 @@ const { v4: uuidv4 } = require('uuid');
 const config = require('../config');
 const userRepo = require('../repositories/UserRepository');
 const tokenRepo = require('../repositories/TokenRepository');
-const registrationRepo = require('../repositories/RegistrationRepository');
 const walletService = require('./WalletService');
 const {
   NotFoundError,
@@ -15,7 +14,7 @@ const {
   ConflictError,
   BadRequestError,
 } = require('../domain/errors');
-const { USER_STATUSES, REGISTRATION_STATUSES, TRANSACTION_TYPES } = require('../constants');
+const { USER_STATUSES, TRANSACTION_TYPES } = require('../constants');
 
 const BCRYPT_ROUNDS = 12;
 const LOGIN_GENERATION_ATTEMPTS = 5;
@@ -42,31 +41,35 @@ const generateTokenPair = (userId, role) => {
 };
 
 class AuthService {
-  async register({ fullName, grade, parentName, parentPhone }) {
-    const normalizedParentPhone = parentPhone.replace(/\D/g, '');
+  // Регистрация теперь без модерации — пользователь сам придумывает login/password
+  // при регистрации и сразу может войти. Уникальность логина проверяется явно здесь
+  // (для понятного 409 вместо голой ошибки БД), UNIQUE на users.login — финальный рубеж.
+  async register({ fullName, grade, parentName, parentPhone, login, password }) {
+    const existingLogin = await userRepo.findByLogin(login);
+    if (existingLogin) throw new ConflictError('Этот логин уже занят, выберите другой');
 
-    // Дедуп по (телефон родителя + ФИО ребёнка), не по одному телефону — у родителя может
-    // быть несколько детей, каждый со своей заявкой.
-    const latestRequest = await registrationRepo.findLatestPendingForChild(normalizedParentPhone, fullName);
-    if (latestRequest) {
-      throw new ConflictError('Заявка на этого ученика уже отправлена. Ожидайте подтверждения.');
+    const normalizedParentPhone = parentPhone.replace(/\D/g, '');
+    const passwordHash = await this.hashPassword(password);
+    const id = uuidv4();
+
+    try {
+      await userRepo.create({
+        id, login, passwordHash, fullName, grade,
+        parentName, parentPhone: normalizedParentPhone,
+      });
+    } catch (err) {
+      // Пре-чек выше не гарантирует уникальность под конкурентной нагрузкой (TOCTOU) —
+      // UNIQUE на login (констрейнт исторически называется users_phone_key после переименования
+      // колонки phone -> login) финальный рубеж. Ловим здесь, чтобы "проигравший" гонку запрос
+      // получил то же понятное сообщение, а не голую ошибку БД из общего errorHandler.
+      if (err.code === '23505') throw new ConflictError('Этот логин уже занят, выберите другой');
+      throw err;
     }
 
-    const id = uuidv4();
-    await registrationRepo.create({ id, fullName, grade, parentName, parentPhone: normalizedParentPhone });
-
     return {
-      message: 'Заявка отправлена. Администратор рассмотрит её и передаст логин и пароль куратору.',
-      requestId: id,
-    };
-  }
-
-  async getRegistrationStatus(requestId) {
-    const request = await registrationRepo.findStatusById(requestId);
-    if (!request) throw new NotFoundError('Заявка не найдена');
-    return {
-      status: request.status,
-      rejectReason: request.status === REGISTRATION_STATUSES.REJECTED ? request.reject_reason : null,
+      message: 'Регистрация завершена. Теперь можно войти с этим логином и паролем.',
+      userId: id,
+      login,
     };
   }
 

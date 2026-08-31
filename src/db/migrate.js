@@ -61,7 +61,9 @@ CREATE INDEX IF NOT EXISTS idx_users_status ON users(status);
 CREATE INDEX IF NOT EXISTS idx_users_exp ON users(exp DESC);
 
 -- ============================================================
--- REGISTRATION REQUESTS (ожидают апрув от администратора)
+-- REGISTRATION REQUESTS (не используется приложением — регистрация теперь без модерации,
+-- пользователь сам придумывает login/password и сразу создаётся users-запись; таблица оставлена
+-- как legacy ради уже существующих данных, новым кодом не читается и не пишется)
 -- ============================================================
 CREATE TABLE IF NOT EXISTS registration_requests (
   id            UUID PRIMARY KEY DEFAULT uuid_generate_v4(),

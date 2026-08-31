@@ -1,16 +1,17 @@
 'use strict';
 
-const { body, param } = require('express-validator');
+const { body } = require('express-validator');
 
 const registerSchema = [
   body('full_name').trim().notEmpty().withMessage('ФИО ребёнка обязательно'),
   body('grade').trim().notEmpty().withMessage('Класс обучения обязателен'),
   body('parent_name').trim().notEmpty().withMessage('Имя родителя обязательно'),
   body('parent_phone').trim().notEmpty().isMobilePhone().withMessage('Неверный номер телефона родителя'),
-];
-
-const registrationStatusSchema = [
-  param('id').isUUID().withMessage('Неверный ID заявки'),
+  body('login')
+    .trim()
+    .isLength({ min: 3, max: 20 }).withMessage('Логин: от 3 до 20 символов')
+    .matches(/^[a-zA-Z0-9_]+$/).withMessage('Логин может содержать только латинские буквы, цифры и подчёркивание'),
+  body('password').isLength({ min: 6 }).withMessage('Пароль: минимум 6 символов'),
 ];
 
 const loginSchema = [
@@ -27,4 +28,4 @@ const changePasswordSchema = [
   body('newPassword').isLength({ min: 6 }).withMessage('Минимум 6 символов'),
 ];
 
-module.exports = { registerSchema, registrationStatusSchema, loginSchema, refreshTokenSchema, changePasswordSchema };
+module.exports = { registerSchema, loginSchema, refreshTokenSchema, changePasswordSchema };

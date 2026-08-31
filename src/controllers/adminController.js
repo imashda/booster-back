@@ -11,22 +11,6 @@ class AdminController {
     res.json({ success: true, data });
   }
 
-  async getRegistrationRequests(req, res) {
-    const { status, limit, offset } = req.query;
-    const data = await adminService.listRegistrationRequests({ status, limit, offset });
-    res.json({ success: true, ...data });
-  }
-
-  async approveRegistration(req, res) {
-    const data = await adminService.approveRegistration(req.params.id, req.user.id);
-    res.json({ success: true, message: 'Заявка одобрена, пользователь создан', data });
-  }
-
-  async rejectRegistration(req, res) {
-    await adminService.rejectRegistration(req.params.id, req.user.id, req.body.reason);
-    res.json({ success: true, message: 'Заявка отклонена' });
-  }
-
   async getUsers(req, res) {
     const { search, status, role, limit, offset } = req.query;
     const data = await adminService.listUsers({ search, status, role, limit, offset });
