@@ -21,7 +21,7 @@ class WalletRepository {
 
   async lockUser(client, userId) {
     const { rows } = await client.query(
-      'SELECT foxes, exp, level FROM users WHERE id = $1 FOR UPDATE',
+      'SELECT foxes, exp, level, house_level FROM users WHERE id = $1 FOR UPDATE',
       [userId]
     );
     return rows[0] ?? null;
@@ -38,6 +38,15 @@ class WalletRepository {
     await client.query(
       'UPDATE users SET exp = $1, level = $2, updated_at = NOW() WHERE id = $3',
       [newExp, newLevel, userId]
+    );
+  }
+
+  // Уровень ДОМА — отдельный от `level` (персонажа) счётчик, растёт только
+  // покупками (buyNextHouseLevel), никогда не пересчитывается из exp.
+  async setHouseLevel(client, userId, newHouseLevel) {
+    await client.query(
+      'UPDATE users SET house_level = $1, updated_at = NOW() WHERE id = $2',
+      [newHouseLevel, userId]
     );
   }
 

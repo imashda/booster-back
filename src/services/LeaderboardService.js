@@ -22,10 +22,14 @@ class LeaderboardService {
     return walletRepo.findAllHouseLevels();
   }
 
-  // Покупка всегда бьёт по СЛЕДУЮЩЕМУ уровню от текущего — нельзя перепрыгнуть вперёд.
-  // "Купить уровень" = получить ровно тот EXP, которого не хватает до порога следующего
-  // уровня (а не установить level напрямую) — level всегда остаётся производным от exp
-  // (см. тот же принцип у exp_bonus скинов), иначе следующий квиз/игра могли бы отменить покупку.
+  // Уровень ДОМА (house_level) и уровень ПЕРСОНАЖА (level) — независимые счётчики:
+  // - house_level растёт только покупками, ровно на 1 за раз, свою цену берёт из
+  //   house_levels.price_foxes по СВОЕМУ следующему номеру (house_level + 1);
+  // - level остаётся производным от exp (resolveLevelForExp), как и раньше —
+  //   покупка дома лишь ДОПОЛНИТЕЛЬНО грантит EXP ровно до порога level + 1,
+  //   то есть даёт +1 к уровню персонажа, где бы он сейчас ни был. Грант EXP
+  //   (а не прямая запись level) — тот же приём, что и раньше: level неуязвим
+  //   к откату следующим квизом/игрой, потому что всегда пересчитывается из exp.
   async buyNextHouseLevel(userId) {
     const client = await getClient();
     try {
@@ -34,33 +38,43 @@ class LeaderboardService {
       const user = await walletRepo.lockUser(client, userId);
       if (!user) throw new NotFoundError('Пользователь не найден');
 
-      const nextLevel = await walletRepo.findLevel(user.level + 1);
-      if (!nextLevel) throw new BadRequestError('Вы уже на максимальном уровне');
-      if (nextLevel.price_foxes == null) {
+      const nextHouse = await walletRepo.findLevel(user.house_level + 1);
+      if (!nextHouse) throw new BadRequestError('Вы уже на максимальном уровне дома');
+      if (nextHouse.price_foxes == null) {
         throw new BadRequestError('Этот уровень нельзя купить за Фоксы — только заработать');
       }
-      if (user.foxes < nextLevel.price_foxes) {
+      if (user.foxes < nextHouse.price_foxes) {
         throw new BadRequestError(
-          `Недостаточно Фоксов. Нужно: ${nextLevel.price_foxes}, у вас: ${user.foxes}`
+          `Недостаточно Фоксов. Нужно: ${nextHouse.price_foxes}, у вас: ${user.foxes}`
         );
       }
 
-      const expNeeded = Math.max(0, nextLevel.exp_required - user.exp);
-      const description = `Покупка уровня дома: ${nextLevel.name}`;
+      const description = `Покупка уровня дома: ${nextHouse.name}`;
 
       const foxResult = await walletService.changeFoxes(
-        userId, -nextLevel.price_foxes, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
+        userId, -nextHouse.price_foxes, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
       );
-      const expResult = await walletService.changeExp(
-        userId, expNeeded, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
-      );
+
+      const newHouseLevel = user.house_level + 1;
+      await walletRepo.setHouseLevel(client, userId, newHouseLevel);
+
+      // +1 к уровню персонажа — если он уже на максимуме, оставляем как есть.
+      const nextFoxLevel = await walletRepo.findLevel(user.level + 1);
+      let expResult = { newExp: user.exp, newLevel: user.level };
+      if (nextFoxLevel) {
+        const expNeeded = Math.max(0, nextFoxLevel.exp_required - user.exp);
+        expResult = await walletService.changeExp(
+          userId, expNeeded, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
+        );
+      }
 
       await client.query('COMMIT');
 
       return {
-        houseName: nextLevel.name,
-        foxesSpent: nextLevel.price_foxes,
+        houseName: nextHouse.name,
+        foxesSpent: nextHouse.price_foxes,
         newFoxesBalance: foxResult.newBalance,
+        newHouseLevel,
         newExp: expResult.newExp,
         newLevel: expResult.newLevel,
       };

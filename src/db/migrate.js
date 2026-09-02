@@ -30,8 +30,9 @@ CREATE TABLE IF NOT EXISTS users (
 
   -- Gamification
   foxes         INTEGER NOT NULL DEFAULT 0,   -- валюта FOX
-  exp           INTEGER NOT NULL DEFAULT 0,   -- опыт (для лидерборда и уровней дома)
-  level         INTEGER NOT NULL DEFAULT 1,   -- уровень дома (1–50)
+  exp           INTEGER NOT NULL DEFAULT 0,   -- опыт (для лидерборда и уровня персонажа)
+  level         INTEGER NOT NULL DEFAULT 1,   -- уровень ПЕРСОНАЖА (лиса) — производный от exp, см. resolveLevelForExp
+  house_level   INTEGER NOT NULL DEFAULT 1,   -- уровень ДОМА на карте (1–50) — отдельный счётчик, растёт покупками за Фоксы
 
   -- Alpha CRM (не используется приложением — интеграция отключена, foxes заводятся в БД напрямую)
   alpha_crm_id  VARCHAR(100),
@@ -340,6 +341,12 @@ CREATE TABLE IF NOT EXISTS house_levels (
 );
 
 ALTER TABLE house_levels ADD COLUMN IF NOT EXISTS price_foxes INTEGER;
+
+-- Уровень дома отделён от уровня персонажа (лиса): раньше это было одно и то же
+-- поле `level`, из-за чего они всегда совпадали. `house_level` — отдельный счётчик,
+-- растущий только покупками (house-levels/buy-next), а `level` остаётся производным
+-- от exp (resolveLevelForExp) — покупка дома лишь дополнительно даёт +1 к `level`.
+ALTER TABLE users ADD COLUMN IF NOT EXISTS house_level INTEGER NOT NULL DEFAULT 1;
 
 -- ============================================================
 -- ALPHA CRM SYNC LOG (не используется приложением — интеграция отключена)
