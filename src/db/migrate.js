@@ -343,9 +343,9 @@ CREATE TABLE IF NOT EXISTS house_levels (
 ALTER TABLE house_levels ADD COLUMN IF NOT EXISTS price_foxes INTEGER;
 
 -- Уровень дома отделён от уровня персонажа (лиса): раньше это было одно и то же
--- поле `level`, из-за чего они всегда совпадали. `house_level` — отдельный счётчик,
--- растущий только покупками (house-levels/buy-next), а `level` остаётся производным
--- от exp (resolveLevelForExp) — покупка дома лишь дополнительно даёт +1 к `level`.
+-- поле level, из-за чего они всегда совпадали. house_level — отдельный счётчик,
+-- растущий только покупками (house-levels/buy-next), а level остаётся производным
+-- от exp (resolveLevelForExp) — покупка дома лишь дополнительно даёт +1 к level.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS house_level INTEGER NOT NULL DEFAULT 1;
 
 -- ============================================================
