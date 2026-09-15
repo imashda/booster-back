@@ -115,24 +115,64 @@ async function seed() {
     }
     console.log('✅ Sample quiz questions seeded');
 
-    // ── Sample Shop Items ───────────────────────────────────
+    // ── Shop Items ──────────────────────────────────────────
+    // Витрина по макету: ровно 12 товаров, порядок и цены — из правок дизайна.
+    //
+    // Раньше товары вставлялись без ON CONFLICT, и каждый повторный запуск
+    // seed'а добавлял ещё один комплект — отсюда «повторяются карточки».
+    // Теперь сначала гасим ВСЁ, что сейчас в витрине, а потом поднимаем
+    // ровно эти 12 (по названию). Строки не удаляем: на них могут ссылаться
+    // оформленные заявки (shop_orders.item_id), а is_active = false просто
+    // убирает товар с витрины (см. ShopRepository.findActiveItems).
     const shopItems = [
-      { name: 'iPhone 15 Pro',      price: 80000, category: 'Техника',     desc: 'Смартфон Apple iPhone 15 Pro 256GB' },
-      { name: 'PlayStation 5',      price: 50000, category: 'Техника',     desc: 'Игровая консоль Sony PlayStation 5' },
-      { name: 'AirPods Pro',        price: 50000, category: 'Аксессуары',  desc: 'Беспроводные наушники Apple AirPods Pro 2' },
-      { name: 'ChatGPT Plus 1 мес', price: 60000, category: 'Подписки',    desc: 'Подписка ChatGPT Plus на 1 месяц' },
-      { name: 'Netflix 1 мес',      price: 30000, category: 'Подписки',    desc: 'Подписка Netflix на 1 месяц' },
-      { name: 'Велосипед',          price: 60000, category: 'Спорт',       desc: 'Горный велосипед 26"' },
-      { name: 'Gallup Test',        price: 80000, category: 'Образование', desc: 'Тест Gallup StrengthsFinder' },
-      { name: 'Наушники',           price: 40000, category: 'Аксессуары',  desc: 'Беспроводные наушники' },
+      { name: 'Iphone',           price: 800000, category: 'Техника',    desc: 'Смартфон Apple iPhone' },
+      { name: 'PlayStation 5',    price: 500000, category: 'Техника',    desc: 'Игровая консоль Sony PlayStation 5' },
+      { name: 'Instax',           price: 150000, category: 'Техника',    desc: 'Фотоаппарат мгновенной печати Instax' },
+      { name: 'Яндекс Станция',   price:  80000, category: 'Техника',    desc: 'Умная колонка Яндекс Станция' },
+      { name: 'Наушники Hoco',    price:  60000, category: 'Аксессуары', desc: 'Беспроводные наушники Hoco' },
+      { name: 'AirPods Pro',      price:  50000, category: 'Аксессуары', desc: 'Беспроводные наушники Apple AirPods Pro' },
+      { name: 'Колонка',          price:  40000, category: 'Аксессуары', desc: 'Портативная беспроводная колонка' },
+      { name: 'Шоппер',           price:  30000, category: 'Мерч',       desc: 'Шоппер Booster' },
+      { name: 'Кепка',            price:  15000, category: 'Мерч',       desc: 'Кепка Booster' },
+      { name: 'Термос/Бутылка',   price:  10000, category: 'Мерч',       desc: 'Термос-бутылка Booster' },
+      { name: 'Блокнот',          price:  10000, category: 'Мерч',       desc: 'Блокнот Booster' },
+      { name: 'Значок',           price:   7000, category: 'Мерч',       desc: 'Значок Booster' },
     ];
-    for (const item of shopItems) {
-      await client.query(`
-        INSERT INTO shop_items (id, name, description, price_foxes, category)
-        VALUES ($1, $2, $3, $4, $5)
-      `, [uuidv4(), item.name, item.desc, item.price, item.category]);
+
+    await client.query('UPDATE shop_items SET is_active = false');
+    for (let i = 0; i < shopItems.length; i++) {
+      const item = shopItems[i];
+      // Если товар с таким названием уже был — обновляем его (самый старый
+      // экземпляр), лишние дубликаты остаются погашенными
+      const { rowCount } = await client.query(`
+        UPDATE shop_items
+        SET description = $2, price_foxes = $3, category = $4, sort_order = $5, is_active = true
+        WHERE id = (SELECT id FROM shop_items WHERE name = $1 ORDER BY created_at LIMIT 1)
+      `, [item.name, item.desc, item.price, item.category, i + 1]);
+      if (rowCount === 0) {
+        await client.query(`
+          INSERT INTO shop_items (id, name, description, price_foxes, category, sort_order, is_active)
+          VALUES ($1, $2, $3, $4, $5, $6, true)
+        `, [uuidv4(), item.name, item.desc, item.price, item.category, i + 1]);
+      }
     }
-    console.log('✅ Shop items seeded');
+    console.log('✅ Shop items seeded (12 товаров, дубликаты погашены)');
+
+    // ── Дубликаты образов ───────────────────────────────────
+    // В гардеробе показывался 31 образ вместо 30: первый образ был
+    // заведён дважды. Строки не удаляем (на них ссылается user_skins),
+    // а гасим все повторы с тем же названием, кроме самого раннего.
+    const { rowCount: dupSkins } = await client.query(`
+      UPDATE skins s SET is_active = false
+      WHERE s.is_active = true
+        AND EXISTS (
+          SELECT 1 FROM skins older
+          WHERE older.name = s.name
+            AND older.is_active = true
+            AND (older.created_at, older.id) < (s.created_at, s.id)
+        )
+    `);
+    console.log(`✅ Дубликаты образов погашены: ${dupSkins}`);
 
     await client.query('COMMIT');
     console.log('\n🎉 Seed completed!');
