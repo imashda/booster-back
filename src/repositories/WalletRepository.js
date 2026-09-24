@@ -97,8 +97,12 @@ class WalletRepository {
     return rows;
   }
 
-  async findLevel(level) {
-    const { rows } = await db.query('SELECT * FROM house_levels WHERE level = $1', [level]);
+  // client — подключение открытой транзакции. Без него запрос берёт из пула
+  // ВТОРОЕ подключение, пока первое держит транзакция: лишний клиент на
+  // каждую покупку (у Supabase лимит ~15), а при пуле в одно подключение —
+  // взаимная блокировка до таймаута.
+  async findLevel(level, client = db) {
+    const { rows } = await client.query('SELECT * FROM house_levels WHERE level = $1', [level]);
     return rows[0] ?? null;
   }
 

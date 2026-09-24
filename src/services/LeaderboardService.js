@@ -38,7 +38,7 @@ class LeaderboardService {
       const user = await walletRepo.lockUser(client, userId);
       if (!user) throw new NotFoundError('Пользователь не найден');
 
-      const nextHouse = await walletRepo.findLevel(user.house_level + 1);
+      const nextHouse = await walletRepo.findLevel(user.house_level + 1, client);
       if (!nextHouse) throw new BadRequestError('Вы уже на максимальном уровне дома');
       if (nextHouse.price_foxes == null) {
         throw new BadRequestError('Этот уровень нельзя купить за Фоксы — только заработать');
@@ -59,7 +59,7 @@ class LeaderboardService {
       await walletRepo.setHouseLevel(client, userId, newHouseLevel);
 
       // +1 к уровню персонажа — если он уже на максимуме, оставляем как есть.
-      const nextFoxLevel = await walletRepo.findLevel(user.level + 1);
+      const nextFoxLevel = await walletRepo.findLevel(user.level + 1, client);
       let expResult = { newExp: user.exp, newLevel: user.level };
       if (nextFoxLevel) {
         const expNeeded = Math.max(0, nextFoxLevel.exp_required - user.exp);
