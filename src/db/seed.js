@@ -107,10 +107,14 @@ async function seed() {
         correct: 'c', category: 'Казахстан'
       },
     ];
+    // Вставляем только те, которых ещё нет (по тексту вопроса). Раньше это был
+    // голый INSERT, и каждый повторный запуск seed добавлял те же 5 вопросов
+    // ещё раз — а seed приходится перезапускать, например ради витрины магазина.
     for (const q of questions) {
       await client.query(`
         INSERT INTO quiz_questions (id, question, option_a, option_b, option_c, option_d, correct, category)
-        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        SELECT $1::uuid, $2::text, $3::text, $4::text, $5::text, $6::text, $7::char(1), $8::varchar
+        WHERE NOT EXISTS (SELECT 1 FROM quiz_questions WHERE question = $2::text)
       `, [uuidv4(), q.q, q.a, q.b, q.c, q.d, q.correct, q.category]);
     }
     console.log('✅ Sample quiz questions seeded');
