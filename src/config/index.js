@@ -8,6 +8,7 @@ const config = {
   },
   db: {
     url: process.env.DATABASE_URL,
+    ssl: resolveDbSsl(process.env.DATABASE_URL, process.env.DB_SSL),
     pool: {
       // ВАЖНО: держи ниже лимита клиентов текущего Supabase-пулера (проверено эмпирически —
       // на session mode :5432 упирается в "max clients reached in session mode, pool_size: 15").
@@ -57,6 +58,33 @@ const missing = Object.entries(REQUIRED)
 
 if (missing.length > 0) {
   throw new Error(`Missing required environment variables: ${missing.join(', ')}`);
+}
+
+/**
+ * Нужен ли SSL при подключении к базе.
+ *
+ * Облачные базы (Supabase, Railway) требуют SSL — там он включён всегда, как
+ * и раньше. А PostgreSQL на своём компьютере (например, поставленный на
+ * Windows обычным установщиком) SSL по умолчанию не поддерживает, и при
+ * жёстко включённом SSL сервер падал с «The server does not support SSL
+ * connections». Поэтому для localhost SSL выключается сам.
+ *
+ * Явно переопределить: DB_SSL=false или DB_SSL=true в .env.
+ */
+function resolveDbSsl(url, flag) {
+  if (flag != null && flag !== '') {
+    return ['1', 'true', 'on', 'yes'].includes(String(flag).toLowerCase())
+      ? { rejectUnauthorized: false }
+      : false;
+  }
+  let host = '';
+  try {
+    host = new URL(url).hostname;
+  } catch {
+    /* кривой URL — пусть ругается сам pg, а не мы */
+  }
+  const local = ['localhost', '127.0.0.1', '::1', '[::1]'].includes(host);
+  return local ? false : { rejectUnauthorized: false };
 }
 
 module.exports = Object.freeze(config);

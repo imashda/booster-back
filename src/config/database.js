@@ -6,7 +6,8 @@ const logger = require('../shared/logger');
 
 const pool = new Pool({
   connectionString: config.db.url,
-  ssl: { rejectUnauthorized: false },
+  // SSL для облака, без SSL для базы на своём компьютере — см. resolveDbSsl
+  ssl: config.db.ssl,
   ...config.db.pool,
 });
 
