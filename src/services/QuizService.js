@@ -5,19 +5,37 @@ const config = require('../config');
 const { getClient } = require('../config/database');
 const quizRepo = require('../repositories/QuizRepository');
 const walletService = require('./WalletService');
-const { NotFoundError, ConflictError } = require('../domain/errors');
+const { AppError, NotFoundError, ConflictError } = require('../domain/errors');
 const { TRANSACTION_TYPES } = require('../constants');
+const { localDate } = require('../shared/time');
+
+const QUESTIONS_PER_DAY = 5;
 
 class QuizService {
+  /** Гарантирует, что на сегодня (по часовому поясу учеников) есть расписание. */
+  async ensureTodaySchedule() {
+    const date = this._today();
+    const res = await quizRepo.ensureScheduleForDate(date, QUESTIONS_PER_DAY);
+    return { date, ...res };
+  }
+
   async getTodayQuiz(userId) {
     const today = this._today();
 
-    const [questions, answers] = await Promise.all([
-      quizRepo.findScheduledQuestionsForDate(today),
-      quizRepo.findUserAnswersForDate(userId, today),
-    ]);
+    let questions = await quizRepo.findScheduledQuestionsForDate(today);
+    if (questions.length === 0) {
+      // Расписания на сегодня нет (cron не отработал, сервер спал) — создаём
+      // его прямо сейчас, а не отдаём 404 до завтра.
+      await quizRepo.ensureScheduleForDate(today, QUESTIONS_PER_DAY);
+      questions = await quizRepo.findScheduledQuestionsForDate(today);
+    }
+    // Отдельный code, чтобы клиент отличал «квиз не назначен» (в базе нет ни
+    // одного активного вопроса) от опечатки в маршруте или сетевой ошибки.
+    if (questions.length === 0) {
+      throw new AppError('Квиз на сегодня не запланирован', 404, 'QUIZ_NOT_SCHEDULED');
+    }
 
-    if (questions.length === 0) throw new NotFoundError('Квиз на сегодня не запланирован');
+    const answers = await quizRepo.findUserAnswersForDate(userId, today);
 
     const answersByQuestion = new Map(answers.map((a) => [a.question_id, a]));
 
@@ -55,7 +73,7 @@ class QuizService {
     const today = this._today();
 
     const [existingAnswer, question] = await Promise.all([
-      quizRepo.findUserAnswerForQuestion(userId, questionId),
+      quizRepo.findUserAnswerForQuestion(userId, questionId, today),
       quizRepo.findScheduledQuestion(today, questionId),
     ]);
 
@@ -102,6 +120,10 @@ class QuizService {
       await client.query('COMMIT');
     } catch (err) {
       await client.query('ROLLBACK');
+      // Два одновременных ответа на один вопрос (двойной тап, повтор после
+      // обрыва сети): второй упирается в уникальный индекс. Награда начислена
+      // ровно один раз — первым запросом, второй честно получает 409.
+      if (err.code === '23505') throw new ConflictError('Вы уже ответили на этот вопрос');
       throw err;
     } finally {
       client.release();
@@ -115,8 +137,8 @@ class QuizService {
 
     return {
       questionId: question.id,
+      // Правильный вариант клиенту не отдаём — ни до, ни после ответа.
       isCorrect,
-      correctAnswer: question.correct,
       foxesEarned,
       expEarned,
       newFoxesBalance: foxResult?.newBalance,
@@ -176,7 +198,7 @@ class QuizService {
   }
 
   _today() {
-    return new Date().toISOString().split('T')[0];
+    return localDate();
   }
 }
 

@@ -101,18 +101,18 @@ class AdminController {
   }
 
   async createSkin(req, res) {
-    const { name, description, image_url, price_foxes, level_req, exp_bonus } = req.body;
+    const { name, description, image_url, price_foxes, level_req, exp_bonus, slug } = req.body;
     const data = await skinService.createSkin({
-      name, description,
+      name, description, slug: slug ?? null,
       imageUrl: image_url, priceFoxes: price_foxes, levelReq: level_req ?? 1, expBonus: exp_bonus ?? 0,
     });
     res.status(201).json({ success: true, data });
   }
 
   async updateSkin(req, res) {
-    const { name, description, image_url, price_foxes, level_req, exp_bonus, is_active } = req.body;
+    const { name, description, image_url, price_foxes, level_req, exp_bonus, is_active, slug } = req.body;
     const data = await skinService.updateSkin(req.params.id, {
-      name, description,
+      name, description, slug,
       imageUrl: image_url, priceFoxes: price_foxes, levelReq: level_req, expBonus: exp_bonus, isActive: is_active,
     });
     res.json({ success: true, data });

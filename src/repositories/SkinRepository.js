@@ -10,7 +10,12 @@ class SkinRepository {
        FROM skins s
        LEFT JOIN user_skins us ON us.skin_id = s.id AND us.user_id = $1
        WHERE s.is_active = true
-       ORDER BY s.price_foxes`,
+       -- Только цена не задаёт порядок однозначно (у нескольких образов она
+       -- одинаковая) — Postgres мог отдавать их в разном порядке от запроса
+       -- к запросу. Добиваем номером из slug и id.
+       ORDER BY s.price_foxes,
+                NULLIF(regexp_replace(COALESCE(s.slug, ''), '\\D', '', 'g'), '')::int NULLS LAST,
+                s.created_at, s.id`,
       [userId]
     );
     return rows;
@@ -68,26 +73,26 @@ class SkinRepository {
     return rows[0] ?? null;
   }
 
-  async createSkin({ id, name, description, imageUrl, priceFoxes, levelReq, expBonus }) {
+  async createSkin({ id, name, description, imageUrl, priceFoxes, levelReq, expBonus, slug }) {
     const { rows } = await db.query(
-      `INSERT INTO skins (id, name, description, image_url, price_foxes, level_req, exp_bonus)
-       VALUES ($1, $2, $3, $4, $5, $6, $7) RETURNING *`,
-      [id, name, description, imageUrl, priceFoxes, levelReq, expBonus ?? 0]
+      `INSERT INTO skins (id, name, description, image_url, price_foxes, level_req, exp_bonus, slug)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING *`,
+      [id, name, description, imageUrl, priceFoxes, levelReq, expBonus ?? 0, slug ?? null]
     );
     return rows[0];
   }
 
   // Partial update: any field omitted (undefined -> NULL param) keeps its current DB value via COALESCE.
-  async updateSkin(id, { name, description, imageUrl, priceFoxes, levelReq, expBonus, isActive }) {
+  async updateSkin(id, { name, description, imageUrl, priceFoxes, levelReq, expBonus, isActive, slug }) {
     const { rows } = await db.query(
       `UPDATE skins
        SET name=COALESCE($1, name), description=COALESCE($2, description),
            image_url=COALESCE($3, image_url), price_foxes=COALESCE($4, price_foxes),
            level_req=COALESCE($5, level_req), exp_bonus=COALESCE($6, exp_bonus),
-           is_active=COALESCE($7, is_active),
+           is_active=COALESCE($7, is_active), slug=COALESCE($9, slug),
            updated_at=NOW()
        WHERE id=$8 RETURNING *`,
-      [name, description, imageUrl, priceFoxes, levelReq, expBonus, isActive, id]
+      [name, description, imageUrl, priceFoxes, levelReq, expBonus, isActive, id, slug]
     );
     return rows[0] ?? null;
   }

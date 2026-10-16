@@ -7,6 +7,7 @@ const gameRepo = require('../repositories/GameRepository');
 const walletService = require('./WalletService');
 const { NotFoundError } = require('../domain/errors');
 const { TRANSACTION_TYPES } = require('../constants');
+const { localDate } = require('../shared/time');
 
 class GameService {
   async listGames(userId) {
@@ -26,7 +27,12 @@ class GameService {
     };
   }
 
-  async submitResult(userId, gameId, score) {
+  /**
+   * @param clientSessionId id партии, сгенерированный клиентом. Повторная
+   *   отправка той же партии (двойной тап, повтор после таймаута) возвращает
+   *   уже начисленный результат с duplicate: true и ничего не начисляет.
+   */
+  async submitResult(userId, gameId, score, clientSessionId = null) {
     const today = this._today();
     const game = await gameRepo.findById(gameId);
     if (!game) throw new NotFoundError('Игра не найдена');
@@ -45,6 +51,16 @@ class GameService {
       const limitRow = await gameRepo.lockDailyLimit(client, userId, today);
       const foxesEarnedToday = limitRow?.foxes_earned ?? 0;
 
+      // Проверка повтора — ПОСЛЕ блокировки строки лимита: два одновременных
+      // запроса одной партии выстраиваются в очередь, и второй уже видит первый.
+      if (clientSessionId) {
+        const existing = await gameRepo.findByClientSession(client, userId, clientSessionId);
+        if (existing) {
+          await client.query('COMMIT');
+          return this._replayResult(userId, existing, foxesEarnedToday, dailyLimit);
+        }
+      }
+
       const remaining = Math.max(0, dailyLimit - foxesEarnedToday);
       const foxesToAward = Math.min(game.fox_reward, remaining);
       const expToAward = game.exp_reward;
@@ -52,6 +68,7 @@ class GameService {
       await gameRepo.saveSession(client, {
         id: sessionId, userId, gameId,
         score: score ?? 0, foxesEarned: foxesToAward, expEarned: expToAward, date: today,
+        clientSessionId,
       });
 
       let foxResult = null;
@@ -86,8 +103,25 @@ class GameService {
     }
   }
 
+  async _replayResult(userId, session, foxesEarnedToday, dailyLimit) {
+    const user = await require('../repositories/UserRepository').findById(userId);
+    return {
+      duplicate: true,
+      foxesEarned: session.foxes_earned,
+      expEarned: session.exp_earned,
+      limitReached: session.foxes_earned < session.fox_reward,
+      newFoxesBalance: user?.foxes,
+      newExp: user?.exp,
+      leveledUp: false,
+      newLevel: user?.level,
+      dailyFoxesEarned: foxesEarnedToday,
+      dailyFoxesLimit: dailyLimit,
+    };
+  }
+
+  // Дневной лимит FOX считается по календарю учеников, а не UTC
   _today() {
-    return new Date().toISOString().split('T')[0];
+    return localDate();
   }
 }
 

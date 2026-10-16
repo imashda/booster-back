@@ -13,6 +13,7 @@ const answerQuizSchema = [
 const submitGameResultSchema = [
   body('game_id').isUUID().withMessage('Неверный ID игры'),
   body('score').optional().isInt({ min: 0 }).withMessage('score должен быть неотрицательным'),
+  body('client_session_id').optional().isUUID().withMessage('Неверный client_session_id'),
 ];
 
 const orderShopItemSchema = [

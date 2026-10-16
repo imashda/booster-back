@@ -73,6 +73,7 @@ const createSkinSchema = [
   body('name').trim().notEmpty().withMessage('Название обязательно'),
   body('price_foxes').isInt({ min: 0 }).withMessage('Цена должна быть неотрицательной'),
   body('exp_bonus').optional().isInt({ min: 0 }).withMessage('exp_bonus должен быть неотрицательным'),
+  body('slug').optional({ values: 'null' }).matches(/^set_\d{1,3}$/).withMessage('slug должен быть вида set_N'),
 ];
 
 const updateSkinSchema = [
@@ -82,6 +83,7 @@ const updateSkinSchema = [
   body('level_req').optional().isInt({ min: 1 }).withMessage('level_req должен быть положительным'),
   body('exp_bonus').optional().isInt({ min: 0 }).withMessage('exp_bonus должен быть неотрицательным'),
   body('is_active').optional().isBoolean().withMessage('is_active должен быть true/false'),
+  body('slug').optional({ values: 'null' }).matches(/^set_\d{1,3}$/).withMessage('slug должен быть вида set_N'),
 ];
 
 const deleteShopItemSchema = [uuidParam];

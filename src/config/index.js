@@ -42,7 +42,10 @@ const config = {
     dailyGameFoxLimit: parseInt(process.env.DAILY_GAMES_FOX_LIMIT, 10) || 100,
   },
   cron: {
-    timezone: 'Asia/Almaty',
+    // Тот же пояс, что и у «сегодня» в игровой логике (см. shared/time.js).
+    // Раньше здесь был Asia/Almaty: в старых базах tzdata это UTC+6, и cron
+    // срабатывал на час раньше, чем считались даты квиза.
+    timezone: require('../shared/time').APP_TIMEZONE,
   },
 };
 

@@ -16,7 +16,7 @@ class AdminService {
         userRepo.countStudents(),
         userRepo.countActiveStudents(),
         userRepo.sumFoxes(),
-        require('../repositories/QuizRepository').isScheduledToday(),
+        require('../repositories/QuizRepository').hasScheduleForDate(require('../shared/time').localDate()),
         require('../repositories/ShopRepository').countPendingOrders(),
       ]);
 

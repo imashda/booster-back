@@ -54,12 +54,22 @@ class GameRepository {
     );
   }
 
-  async saveSession(client, { id, userId, gameId, score, foxesEarned, expEarned, date }) {
+  async saveSession(client, { id, userId, gameId, score, foxesEarned, expEarned, date, clientSessionId }) {
     await client.query(
-      `INSERT INTO game_sessions (id, user_id, game_id, score, foxes_earned, exp_earned, session_date)
-       VALUES ($1, $2, $3, $4, $5, $6, $7)`,
-      [id, userId, gameId, score, foxesEarned, expEarned, date]
+      `INSERT INTO game_sessions (id, user_id, game_id, score, foxes_earned, exp_earned, session_date, client_session_id)
+       VALUES ($1, $2, $3, $4, $5, $6, $7, $8)`,
+      [id, userId, gameId, score, foxesEarned, expEarned, date, clientSessionId ?? null]
     );
+  }
+
+  async findByClientSession(client, userId, clientSessionId) {
+    const { rows } = await client.query(
+      `SELECT gs.*, mg.fox_reward
+       FROM game_sessions gs JOIN mini_games mg ON mg.id = gs.game_id
+       WHERE gs.user_id = $1 AND gs.client_session_id = $2`,
+      [userId, clientSessionId]
+    );
+    return rows[0] ?? null;
   }
 }
 

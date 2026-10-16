@@ -155,7 +155,13 @@ ALTER TABLE quiz_answers DROP CONSTRAINT IF EXISTS quiz_answers_user_id_quiz_dat
 
 CREATE INDEX IF NOT EXISTS idx_quiz_answers_user ON quiz_answers(user_id);
 CREATE INDEX IF NOT EXISTS idx_quiz_answers_date ON quiz_answers(quiz_date);
-CREATE UNIQUE INDEX IF NOT EXISTS uq_quiz_answers_user_question ON quiz_answers(user_id, question_id);
+-- Уникальность ответа — в пределах ДНЯ квиза: (user_id, question_id, quiz_date).
+-- Раньше было (user_id, question_id) навсегда, а банк вопросов маленький и
+-- расписание повторяет вопросы: со второго дня на повторившийся вопрос
+-- ответить было нельзя вообще (вечный 409). Двойное начисление за один день
+-- по-прежнему исключено этим индексом.
+DROP INDEX IF EXISTS uq_quiz_answers_user_question;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_quiz_answers_user_question_date ON quiz_answers(user_id, question_id, quiz_date);
 
 -- ============================================================
 -- MINI GAMES
@@ -185,6 +191,13 @@ CREATE TABLE IF NOT EXISTS game_sessions (
 );
 
 CREATE INDEX IF NOT EXISTS idx_game_sessions_user ON game_sessions(user_id);
+
+-- Идемпотентность результата игры: клиент присылает свой id партии, и
+-- повторная отправка (двойной тап, повтор после таймаута) не начисляет
+-- награду второй раз.
+ALTER TABLE game_sessions ADD COLUMN IF NOT EXISTS client_session_id UUID;
+CREATE UNIQUE INDEX IF NOT EXISTS uq_game_sessions_client ON game_sessions(user_id, client_session_id)
+  WHERE client_session_id IS NOT NULL;
 CREATE INDEX IF NOT EXISTS idx_game_sessions_date ON game_sessions(session_date);
 
 -- Дневной лимит фоксов за игры (100 FOX в день за все игры)
@@ -249,6 +262,49 @@ CREATE TABLE IF NOT EXISTS user_equipped_skins (
 );
 
 ALTER TABLE users ADD COLUMN IF NOT EXISTS equipped_skin_id UUID REFERENCES skins(id);
+
+-- Стабильный ключ картинки образа: 'set_1'...'set_30'. Картинки лежат в
+-- бандле приложения (assets/outfits/set_N.png), сервер хранит только этот
+-- ключ. Раньше колонки не было в миграциях вовсе — на рабочей базе её
+-- заводили вручную, и образ без slug клиент рисовал базовым Фоксом, который
+-- побайтово совпадает с set_1: «первый образ показывается два раза».
+ALTER TABLE skins ADD COLUMN IF NOT EXISTS slug VARCHAR(50);
+
+-- Дубли образа: активная строка с тем же slug, что у более ранней, ЛИБО
+-- активная строка без slug с тем же названием, что у образа со slug
+-- (наследие ручного заведения — у неё нет картинки). Разные образы с
+-- похожей картинкой, но разными slug, не трогаем.
+-- Строки не удаляем: покупки переносим на оригинал, надетый — тоже, дубль
+-- лишь гасим (is_active = false), история user_skins остаётся.
+CREATE TEMP TABLE IF NOT EXISTS tmp_skin_dups (dup_id UUID PRIMARY KEY, keep_id UUID NOT NULL);
+TRUNCATE tmp_skin_dups;
+INSERT INTO tmp_skin_dups (dup_id, keep_id)
+SELECT dup.id, keep.id
+FROM skins dup
+JOIN LATERAL (
+  SELECT k.id FROM skins k
+  WHERE k.is_active = true AND k.id <> dup.id
+    AND (
+      (dup.slug IS NOT NULL AND k.slug = dup.slug AND (k.created_at, k.id) < (dup.created_at, dup.id))
+      OR (dup.slug IS NULL AND k.slug IS NOT NULL AND k.name = dup.name)
+    )
+  ORDER BY k.created_at, k.id
+  LIMIT 1
+) keep ON true
+WHERE dup.is_active = true;
+
+INSERT INTO user_skins (user_id, skin_id, purchased_at)
+SELECT us.user_id, d.keep_id, us.purchased_at
+FROM user_skins us JOIN tmp_skin_dups d ON d.dup_id = us.skin_id
+ON CONFLICT (user_id, skin_id) DO NOTHING;
+
+UPDATE users u SET equipped_skin_id = d.keep_id
+FROM tmp_skin_dups d WHERE u.equipped_skin_id = d.dup_id;
+
+UPDATE skins SET is_active = false WHERE id IN (SELECT dup_id FROM tmp_skin_dups);
+DROP TABLE tmp_skin_dups;
+
+CREATE UNIQUE INDEX IF NOT EXISTS uq_skins_active_slug ON skins(slug) WHERE is_active = true AND slug IS NOT NULL;
 
 -- ============================================================
 -- SHOP (Магазин товаров за FOX)

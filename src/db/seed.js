@@ -162,21 +162,10 @@ async function seed() {
     }
     console.log('✅ Shop items seeded (12 товаров, дубликаты погашены)');
 
-    // ── Дубликаты образов ───────────────────────────────────
-    // В гардеробе показывался 31 образ вместо 30: первый образ был
-    // заведён дважды. Строки не удаляем (на них ссылается user_skins),
-    // а гасим все повторы с тем же названием, кроме самого раннего.
-    const { rowCount: dupSkins } = await client.query(`
-      UPDATE skins s SET is_active = false
-      WHERE s.is_active = true
-        AND EXISTS (
-          SELECT 1 FROM skins older
-          WHERE older.name = s.name
-            AND older.is_active = true
-            AND (older.created_at, older.id) < (s.created_at, s.id)
-        )
-    `);
-    console.log(`✅ Дубликаты образов погашены: ${dupSkins}`);
+    // Дубликаты образов гасит миграция (по slug, с переносом покупок и
+    // надетого образа на оригинал) — см. migrate.js, блок про skins.slug.
+    // Здесь раньше гасили по одному названию без переноса покупок: купивший
+    // дубль терял образ.
 
     await client.query('COMMIT');
     console.log('\n🎉 Seed completed!');

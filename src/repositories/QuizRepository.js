@@ -36,10 +36,13 @@ class QuizRepository {
     return rows;
   }
 
-  async findUserAnswerForQuestion(userId, questionId) {
+  // Ответ ищем в рамках ДАТЫ квиза: вопрос может вернуться в расписание
+  // через несколько дней (банк вопросов небольшой), и вчерашний ответ не
+  // должен навсегда закрывать его — раньше это давало вечный 409.
+  async findUserAnswerForQuestion(userId, questionId, date) {
     const { rows } = await db.query(
-      'SELECT * FROM quiz_answers WHERE user_id = $1 AND question_id = $2',
-      [userId, questionId]
+      'SELECT * FROM quiz_answers WHERE user_id = $1 AND question_id = $2 AND quiz_date = $3',
+      [userId, questionId, date]
     );
     return rows[0] ?? null;
   }
@@ -136,35 +139,69 @@ class QuizRepository {
     return rows.length > 0;
   }
 
-  async findUnusedQuestions(excludeDays = 30, count = 5) {
-    const { rows } = await db.query(`
-      SELECT id FROM quiz_questions
-      WHERE is_active = true
-        AND id NOT IN (
-          SELECT question_id FROM daily_quiz_schedule
-          WHERE quiz_date > CURRENT_DATE - INTERVAL '${excludeDays} days'
-        )
-      ORDER BY RANDOM() LIMIT $1
-    `, [count]);
+  /**
+   * Создаёт расписание на дату, если его ещё нет, и возвращает число вопросов в нём.
+   *
+   * Безопасно при гонке: несколько одновременных GET /quiz/today в первую
+   * секунду дня (или cron + запрос) берут одну advisory-блокировку на дату,
+   * второй дождётся первого и увидит готовое расписание.
+   */
+  async ensureScheduleForDate(date, count, excludeDays = 30) {
+    const client = await getClient();
+    try {
+      await client.query('BEGIN');
+      await client.query("SELECT pg_advisory_xact_lock(hashtext('daily_quiz:' || $1::text))", [date]);
 
-    if (rows.length >= count) return rows.map((r) => r.id);
+      const { rows: existing } = await client.query(
+        'SELECT COUNT(*)::int AS n FROM daily_quiz_schedule WHERE quiz_date = $1',
+        [date]
+      );
+      if (existing[0].n > 0) {
+        await client.query('COMMIT');
+        return { created: false, count: existing[0].n };
+      }
 
-    const alreadyPicked = rows.map((r) => r.id);
-    const { rows: fallback } = await db.query(
+      const questionIds = await this._pickQuestions(client, date, count, excludeDays);
+      for (let i = 0; i < questionIds.length; i++) {
+        await client.query(
+          'INSERT INTO daily_quiz_schedule (question_id, quiz_date, position) VALUES ($1, $2, $3)',
+          [questionIds[i], date, i + 1]
+        );
+      }
+      await client.query('COMMIT');
+      return { created: questionIds.length > 0, count: questionIds.length };
+    } catch (err) {
+      await client.query('ROLLBACK');
+      throw err;
+    } finally {
+      client.release();
+    }
+  }
+
+  // Сначала вопросы, которых не было последние excludeDays дней (от ДАТЫ квиза,
+  // а не CURRENT_DATE базы — у базы может быть другой часовой пояс), затем
+  // добор любыми активными, если свежих не хватает.
+  async _pickQuestions(client, date, count, excludeDays) {
+    const { rows } = await client.query(
+      `SELECT id FROM quiz_questions
+       WHERE is_active = true
+         AND id NOT IN (
+           SELECT question_id FROM daily_quiz_schedule
+           WHERE quiz_date > $1::date - $2::int AND quiz_date < $1::date
+         )
+       ORDER BY RANDOM() LIMIT $3`,
+      [date, excludeDays, count]
+    );
+    const picked = rows.map((r) => r.id);
+    if (picked.length >= count) return picked;
+
+    const { rows: fallback } = await client.query(
       `SELECT id FROM quiz_questions
        WHERE is_active = true AND id <> ALL($1::uuid[])
        ORDER BY RANDOM() LIMIT $2`,
-      [alreadyPicked, count - rows.length]
+      [picked, count - picked.length]
     );
-
-    return [...alreadyPicked, ...fallback.map((r) => r.id)];
-  }
-
-  async isScheduledToday() {
-    const { rows } = await db.query(
-      "SELECT COUNT(*) FROM daily_quiz_schedule WHERE quiz_date = CURRENT_DATE"
-    );
-    return parseInt(rows[0].count, 10) > 0;
+    return [...picked, ...fallback.map((r) => r.id)];
   }
 }
 

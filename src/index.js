@@ -7,7 +7,8 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const compression = require('compression');
-const rateLimit = require('express-rate-limit');
+const { rateLimit } = require('express-rate-limit');
+const jwt = require('jsonwebtoken');
 
 const config = require('./config');
 const routes = require('./routes');
@@ -47,12 +48,37 @@ app.use(express.urlencoded({ extended: true }));
 app.use(morgan(config.server.env === 'production' ? 'combined' : 'dev'));
 
 // ── Rate limiting ─────────────────────────────────────────────────────────────
+// Ключ лимита — ПОЛЬЗОВАТЕЛЬ (по проверенному access-токену), а для запросов
+// без токена — IP. Раньше ключом был только IP, а ученики сидят за одним
+// школьным/домашним NAT: 200 запросов на 15 минут делились на весь класс, и
+// «Слишком много запросов» прилетало детям, которые сделали пару переходов.
+// Сам лимит не увеличен — он по-прежнему 200 на 15 минут, но на одного
+// человека. Поддельный токен в ключ не попадает: без валидной подписи
+// запрос считается по IP.
+const rateLimitKey = (req) => {
+  const auth = req.headers.authorization;
+  if (auth?.startsWith('Bearer ')) {
+    try {
+      const { userId } = jwt.verify(auth.slice(7), config.jwt.secret);
+      if (userId) return `user:${userId}`;
+    } catch {
+      /* невалидный/просроченный токен — считаем по IP */
+    }
+  }
+  return `ip:${req.ip}`;
+};
+
+const rateLimitHandler = (message) => (req, res, next, options) => {
+  res.status(options.statusCode).json({ success: false, code: 'RATE_LIMITED', message });
+};
+
 const generalLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
   max: 200,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Слишком много запросов. Попробуйте позже.' },
+  keyGenerator: rateLimitKey,
+  handler: rateLimitHandler('Слишком много запросов. Попробуйте позже.'),
 });
 
 const authLimiter = rateLimit({
@@ -60,7 +86,7 @@ const authLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
-  message: { success: false, message: 'Слишком много попыток входа. Подождите 15 минут.' },
+  handler: rateLimitHandler('Слишком много попыток входа. Подождите 15 минут.'),
 });
 
 app.use('/api', generalLimiter);

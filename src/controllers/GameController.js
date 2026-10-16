@@ -9,8 +9,8 @@ class GameController {
   }
 
   async submitGameResult(req, res) {
-    const { game_id, score } = req.body;
-    const data = await gameService.submitResult(req.user.id, game_id, score);
+    const { game_id, score, client_session_id } = req.body;
+    const data = await gameService.submitResult(req.user.id, game_id, score, client_session_id ?? null);
     res.json({ success: true, data });
   }
 }

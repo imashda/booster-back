@@ -1,39 +1,32 @@
 'use strict';
 
 const cron = require('node-cron');
-const quizRepo = require('../repositories/QuizRepository');
+const quizService = require('../services/QuizService');
 const config = require('../config');
 const logger = require('../shared/logger');
 
-const QUESTIONS_PER_DAY = 5;
+/**
+ * Страховка для расписания квиза дня. Основной путь — GET /quiz/today сам
+ * создаёт расписание, если его нет (см. QuizService.ensureTodaySchedule).
+ *
+ * Раньше расписание появлялось ТОЛЬКО здесь, в 08:00: если сервер в это
+ * время спал, перезапускался или деплоился, квиза не было весь день, а до
+ * 08:00 его не было вообще — отсюда «Квиз пока недоступен».
+ * Теперь job срабатывает сразу после полуночи и один раз при старте сервера.
+ */
+async function run(reason) {
+  try {
+    const res = await quizService.ensureTodaySchedule();
+    if (res.created) logger.info('[Job] Daily quiz auto-scheduled', { reason, date: res.date, count: res.count });
+    else if (res.count === 0) logger.warn('[Job] No active quiz questions — daily quiz cannot be scheduled', { reason });
+  } catch (err) {
+    logger.error('[Job] Daily quiz auto-pick failed', { reason, error: err.message });
+  }
+}
 
-const schedule = () =>
-  cron.schedule('0 8 * * *', async () => {
-    logger.info('[Job] Auto-picking daily quiz questions');
-    try {
-      const today = new Date().toISOString().split('T')[0];
-
-      if (await quizRepo.hasScheduleForDate(today)) {
-        logger.info('[Job] Quiz already scheduled for today');
-        return;
-      }
-
-      const questionIds = await quizRepo.findUnusedQuestions(30, QUESTIONS_PER_DAY);
-      if (questionIds.length === 0) {
-        logger.warn('[Job] No quiz questions available');
-        return;
-      }
-      if (questionIds.length < QUESTIONS_PER_DAY) {
-        logger.warn('[Job] Not enough quiz questions for a full daily quiz', {
-          picked: questionIds.length, wanted: QUESTIONS_PER_DAY,
-        });
-      }
-
-      await quizRepo.replaceSchedule(today, questionIds);
-      logger.info('[Job] Daily quiz auto-scheduled', { date: today, count: questionIds.length });
-    } catch (err) {
-      logger.error('[Job] Daily quiz auto-pick failed', { error: err.message });
-    }
-  }, { timezone: config.cron.timezone });
+const schedule = () => {
+  run('startup');
+  return cron.schedule('1 0 * * *', () => run('cron'), { timezone: config.cron.timezone });
+};
 
 module.exports = { schedule };
