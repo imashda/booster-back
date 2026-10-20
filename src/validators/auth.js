@@ -6,7 +6,15 @@ const registerSchema = [
   body('full_name').trim().notEmpty().withMessage('ФИО ребёнка обязательно'),
   body('grade').trim().notEmpty().withMessage('Класс обучения обязателен'),
   body('parent_name').trim().notEmpty().withMessage('Имя родителя обязательно'),
-  body('parent_phone').trim().notEmpty().isMobilePhone().withMessage('Неверный номер телефона родителя'),
+  // Телефон приходит из формы с маской (+7 (701) 123-45-67), поэтому сначала срезаем всё,
+  // кроме цифр, и только потом проверяем — isMobilePhone() отклонял такой ввод, хотя сервис
+  // всё равно хранит один голый номер (см. нормализацию в AuthService.register).
+  body('parent_phone')
+    .trim()
+    .notEmpty().withMessage('Телефон родителя обязателен')
+    .bail()
+    .customSanitizer((value) => value.replace(/\D/g, ''))
+    .isLength({ min: 10, max: 15 }).withMessage('Неверный номер телефона родителя'),
   body('login')
     .trim()
     .isLength({ min: 3, max: 20 }).withMessage('Логин: от 3 до 20 символов')
