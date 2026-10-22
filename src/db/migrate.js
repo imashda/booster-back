@@ -31,7 +31,7 @@ CREATE TABLE IF NOT EXISTS users (
   -- Gamification
   foxes         INTEGER NOT NULL DEFAULT 0,   -- валюта FOX
   exp           INTEGER NOT NULL DEFAULT 0,   -- опыт (для лидерборда и уровня персонажа)
-  level         INTEGER NOT NULL DEFAULT 1,   -- уровень ПЕРСОНАЖА (лиса) — производный от exp, см. resolveLevelForExp
+  level         INTEGER NOT NULL DEFAULT 1,   -- уровень ПЕРСОНАЖА (лиса) = уровень по exp (resolveLevelForExp) + bonus_levels
   house_level   INTEGER NOT NULL DEFAULT 1,   -- уровень ДОМА на карте (1–50) — отдельный счётчик, растёт покупками за Фоксы
 
   -- Alpha CRM (не используется приложением — интеграция отключена, foxes заводятся в БД напрямую)
@@ -401,8 +401,120 @@ ALTER TABLE house_levels ADD COLUMN IF NOT EXISTS price_foxes INTEGER;
 -- Уровень дома отделён от уровня персонажа (лиса): раньше это было одно и то же
 -- поле level, из-за чего они всегда совпадали. house_level — отдельный счётчик,
 -- растущий только покупками (house-levels/buy-next), а level остаётся производным
--- от exp (resolveLevelForExp) — покупка дома лишь дополнительно даёт +1 к level.
+-- от exp (resolveLevelForExp) плюс bonus_levels — см. блок «Прибавка к уровню» ниже.
 ALTER TABLE users ADD COLUMN IF NOT EXISTS house_level INTEGER NOT NULL DEFAULT 1;
+
+-- ============================================================
+-- «ПРИБАВКА К УРОВНЮ» ИЗ ТАБЛИЦЫ ЦЕН (гардероб и дом)
+-- ============================================================
+-- Покупка образа или дома даёт фиксированное число УРОВНЕЙ персонажа из
+-- таблицы, а не EXP. Уровень = уровень по EXP-порогам (квизы, игры) + bonus_levels
+-- (сумма прибавок за покупки). Так прибавка всегда ровно та, что в таблице,
+-- и уровень не упирается в 50 порогов house_levels (по смете можно дойти до ~229).
+ALTER TABLE skins ADD COLUMN IF NOT EXISTS level_bonus INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE house_levels ADD COLUMN IF NOT EXISTS level_bonus INTEGER NOT NULL DEFAULT 1;
+ALTER TABLE users ADD COLUMN IF NOT EXISTS bonus_levels INTEGER NOT NULL DEFAULT 0;
+
+-- Уже накопленный уровень сохраняем: всё, что выше уровня по EXP (ручная правка
+-- админом и т.п.), переносим в bonus_levels. Повторный запуск ничего не меняет:
+-- после переноса level - уровень_по_exp как раз и равен bonus_levels.
+UPDATE users u
+SET bonus_levels = GREATEST(0, u.level - COALESCE(
+  (SELECT MAX(h.level) FROM house_levels h WHERE h.exp_required <= u.exp), 1))
+WHERE u.bonus_levels <> GREATEST(0, u.level - COALESCE(
+  (SELECT MAX(h.level) FROM house_levels h WHERE h.exp_required <= u.exp), 1));
+
+-- Гардероб: № образа (slug set_N) -> цена, прибавка к уровню
+UPDATE skins s SET price_foxes = v.price, level_bonus = v.bonus
+FROM (VALUES
+  ('set_1', 0, 1),
+  ('set_2', 100, 1),
+  ('set_3', 150, 1),
+  ('set_4', 150, 1),
+  ('set_5', 150, 1),
+  ('set_6', 200, 1),
+  ('set_7', 200, 1),
+  ('set_8', 250, 1),
+  ('set_9', 250, 1),
+  ('set_10', 300, 2),
+  ('set_11', 350, 2),
+  ('set_12', 400, 2),
+  ('set_13', 450, 2),
+  ('set_14', 500, 2),
+  ('set_15', 550, 2),
+  ('set_16', 650, 2),
+  ('set_17', 700, 2),
+  ('set_18', 800, 3),
+  ('set_19', 900, 3),
+  ('set_20', 1050, 3),
+  ('set_21', 1200, 3),
+  ('set_22', 1350, 3),
+  ('set_23', 1500, 3),
+  ('set_24', 1700, 4),
+  ('set_25', 1900, 4),
+  ('set_26', 2150, 4),
+  ('set_27', 2450, 4),
+  ('set_28', 2800, 4),
+  ('set_29', 3250, 5),
+  ('set_30', 3600, 6)
+) AS v(slug, price, bonus)
+WHERE s.slug = v.slug AND (s.price_foxes IS DISTINCT FROM v.price OR s.level_bonus IS DISTINCT FROM v.bonus);
+
+-- Дом: № уровня -> цена, прибавка к уровню персонажа
+UPDATE house_levels h SET price_foxes = v.price, level_bonus = v.bonus
+FROM (VALUES
+  (1, 0, 1),
+  (2, 100, 1),
+  (3, 150, 1),
+  (4, 150, 1),
+  (5, 150, 1),
+  (6, 150, 1),
+  (7, 200, 1),
+  (8, 200, 1),
+  (9, 200, 1),
+  (10, 200, 2),
+  (11, 250, 2),
+  (12, 250, 2),
+  (13, 300, 2),
+  (14, 300, 2),
+  (15, 350, 2),
+  (16, 350, 2),
+  (17, 400, 2),
+  (18, 450, 2),
+  (19, 450, 2),
+  (20, 500, 3),
+  (21, 550, 3),
+  (22, 600, 3),
+  (23, 650, 3),
+  (24, 700, 3),
+  (25, 750, 3),
+  (26, 800, 3),
+  (27, 850, 3),
+  (28, 950, 3),
+  (29, 1000, 3),
+  (30, 1100, 4),
+  (31, 1200, 4),
+  (32, 1300, 4),
+  (33, 1400, 4),
+  (34, 1550, 4),
+  (35, 1650, 4),
+  (36, 1800, 4),
+  (37, 1950, 4),
+  (38, 2100, 4),
+  (39, 2250, 4),
+  (40, 2450, 5),
+  (41, 2650, 5),
+  (42, 2900, 5),
+  (43, 3150, 5),
+  (44, 3400, 5),
+  (45, 3650, 5),
+  (46, 4000, 5),
+  (47, 4300, 5),
+  (48, 4750, 5),
+  (49, 5050, 5),
+  (50, 5450, 6)
+) AS v(level, price, bonus)
+WHERE h.level = v.level AND (h.price_foxes IS DISTINCT FROM v.price OR h.level_bonus IS DISTINCT FROM v.bonus);
 
 -- ============================================================
 -- ALPHA CRM SYNC LOG (не используется приложением — интеграция отключена)

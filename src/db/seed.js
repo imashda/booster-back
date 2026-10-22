@@ -65,11 +65,19 @@ async function seed() {
       1200, 1300, 1400, 1550, 1650, 1800, 1950, 2100, 2250, 2450,
       2650, 2900, 3150, 3400, 3650, 4000, 4300, 4750, 5050, 5450,
     ];
+    // «Прибавка к уровню» персонажа за покупку дома — из таблицы цен (то же, что в migrate.js)
+    const levelBonusPerLevel = [
+      1, 1, 1, 1, 1, 1, 1, 1, 1, 2,
+      2, 2, 2, 2, 2, 2, 2, 2, 2, 3,
+      3, 3, 3, 3, 3, 3, 3, 3, 3, 4,
+      4, 4, 4, 4, 4, 4, 4, 4, 4, 5,
+      5, 5, 5, 5, 5, 5, 5, 5, 5, 6,
+    ];
     for (let i = 1; i <= 50; i++) {
       await client.query(`
-        INSERT INTO house_levels (level, name, exp_required, price_foxes)
-        VALUES ($1, $2, $3, $4) ON CONFLICT (level) DO NOTHING
-      `, [i, houseNames[i - 1], expPerLevel[i - 1], pricePerLevel[i - 1]]);
+        INSERT INTO house_levels (level, name, exp_required, price_foxes, level_bonus)
+        VALUES ($1, $2, $3, $4, $5) ON CONFLICT (level) DO NOTHING
+      `, [i, houseNames[i - 1], expPerLevel[i - 1], pricePerLevel[i - 1], levelBonusPerLevel[i - 1]]);
     }
     console.log('✅ 50 house levels seeded');
 

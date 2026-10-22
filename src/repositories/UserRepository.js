@@ -69,10 +69,10 @@ class UserRepository {
   async findForLeaderboard() {
     const { rows } = await db.query(
       `SELECT u.id, u.full_name, u.grade, u.level, u.exp, u.avatar_url,
-              RANK() OVER (ORDER BY u.exp DESC) AS rank
+              RANK() OVER (ORDER BY u.level DESC, u.exp DESC) AS rank
        FROM users u
        WHERE u.status = 'active' AND u.role = 'student'
-       ORDER BY u.exp DESC
+       ORDER BY u.level DESC, u.exp DESC
        LIMIT 100`
     );
     return rows;
@@ -81,7 +81,7 @@ class UserRepository {
   async findRank(id) {
     const { rows } = await db.query(
       `SELECT rank FROM (
-         SELECT id, RANK() OVER (ORDER BY exp DESC) AS rank
+         SELECT id, RANK() OVER (ORDER BY level DESC, exp DESC) AS rank
          FROM users WHERE status = 'active' AND role = 'student'
        ) r WHERE id = $1`,
       [id]

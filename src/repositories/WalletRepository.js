@@ -13,7 +13,7 @@ class WalletRepository {
 
   async lockUserExp(client, userId) {
     const { rows } = await client.query(
-      'SELECT exp, level FROM users WHERE id = $1 FOR UPDATE',
+      'SELECT exp, level, bonus_levels FROM users WHERE id = $1 FOR UPDATE',
       [userId]
     );
     return rows[0] ?? null;
@@ -32,6 +32,16 @@ class WalletRepository {
       'UPDATE users SET foxes = $1, updated_at = NOW() WHERE id = $2',
       [newBalance, userId]
     );
+  }
+
+  // Прибавка к уровню за покупку: копится в bonus_levels и сразу входит в level
+  async addBonusLevels(client, userId, levels) {
+    const { rows } = await client.query(
+      `UPDATE users SET bonus_levels = bonus_levels + $1, level = level + $1, updated_at = NOW()
+       WHERE id = $2 RETURNING level, bonus_levels`,
+      [levels, userId]
+    );
+    return rows[0] ?? null;
   }
 
   async setExpAndLevel(client, userId, newExp, newLevel) {

@@ -25,11 +25,8 @@ class LeaderboardService {
   // Уровень ДОМА (house_level) и уровень ПЕРСОНАЖА (level) — независимые счётчики:
   // - house_level растёт только покупками, ровно на 1 за раз, свою цену берёт из
   //   house_levels.price_foxes по СВОЕМУ следующему номеру (house_level + 1);
-  // - level остаётся производным от exp (resolveLevelForExp), как и раньше —
-  //   покупка дома лишь ДОПОЛНИТЕЛЬНО грантит EXP ровно до порога level + 1,
-  //   то есть даёт +1 к уровню персонажа, где бы он сейчас ни был. Грант EXP
-  //   (а не прямая запись level) — тот же приём, что и раньше: level неуязвим
-  //   к откату следующим квизом/игрой, потому что всегда пересчитывается из exp.
+  // - level персонажа получает «прибавку к уровню» этого дома из таблицы
+  //   (house_levels.level_bonus, 1..6) — см. WalletService.grantLevels.
   async buyNextHouseLevel(userId) {
     const client = await getClient();
     try {
@@ -58,15 +55,7 @@ class LeaderboardService {
       const newHouseLevel = user.house_level + 1;
       await walletRepo.setHouseLevel(client, userId, newHouseLevel);
 
-      // +1 к уровню персонажа — если он уже на максимуме, оставляем как есть.
-      const nextFoxLevel = await walletRepo.findLevel(user.level + 1, client);
-      let expResult = { newExp: user.exp, newLevel: user.level };
-      if (nextFoxLevel) {
-        const expNeeded = Math.max(0, nextFoxLevel.exp_required - user.exp);
-        expResult = await walletService.changeExp(
-          userId, expNeeded, TRANSACTION_TYPES.HOUSE_LEVEL_PURCHASE, description, null, client
-        );
-      }
+      const levelResult = await walletService.grantLevels(userId, nextHouse.level_bonus ?? 1, client);
 
       await client.query('COMMIT');
 
@@ -75,8 +64,9 @@ class LeaderboardService {
         foxesSpent: nextHouse.price_foxes,
         newFoxesBalance: foxResult.newBalance,
         newHouseLevel,
-        newExp: expResult.newExp,
-        newLevel: expResult.newLevel,
+        levelBonus: nextHouse.level_bonus ?? 1,
+        newExp: user.exp,
+        newLevel: levelResult.newLevel,
       };
     } catch (err) {
       await client.query('ROLLBACK');

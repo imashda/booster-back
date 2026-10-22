@@ -32,7 +32,8 @@ class WalletService {
       if (!user) throw new NotFoundError('Пользователь не найден');
 
       const newExp = Math.max(0, user.exp + amount);
-      const newLevel = await walletRepo.resolveLevelForExp(client, newExp);
+      // Уровень = уровень по EXP-порогам + прибавки за покупки (bonus_levels)
+      const newLevel = (await walletRepo.resolveLevelForExp(client, newExp)) + (user.bonus_levels ?? 0);
       const leveledUp = newLevel > user.level;
 
       await walletRepo.setExpAndLevel(client, userId, newExp, newLevel);
@@ -47,6 +48,24 @@ class WalletService {
         newLevel,
         previousLevel: user.level,
         leveledUp,
+      };
+    });
+  }
+
+  // «Прибавка к уровню» за покупку образа/дома — фиксированное число уровней из таблицы
+  async grantLevels(userId, levels, externalClient = null) {
+    return this._withClient(externalClient, async (client) => {
+      const user = await walletRepo.lockUserExp(client, userId);
+      if (!user) throw new NotFoundError('Пользователь не найден');
+      const gain = Math.max(0, levels | 0);
+      if (gain === 0) return { newLevel: user.level, previousLevel: user.level, leveledUp: false, newExp: user.exp };
+
+      const updated = await walletRepo.addBonusLevels(client, userId, gain);
+      return {
+        newLevel: updated.level,
+        previousLevel: user.level,
+        leveledUp: updated.level > user.level,
+        newExp: user.exp,
       };
     });
   }

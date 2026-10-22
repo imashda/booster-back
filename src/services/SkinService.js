@@ -57,8 +57,12 @@ class SkinService {
         TRANSACTION_TYPES.SKIN_PURCHASE, `Покупка образа: ${skin.name}`, purchaseId, client
       );
 
+      // «Прибавка к уровню» из таблицы (level_bonus, в уровнях). exp_bonus —
+      // запасной вариант для образов без level_bonus (например, заведённых в админке).
       let expResult = null;
-      if (skin.exp_bonus > 0) {
+      if (skin.level_bonus > 0) {
+        expResult = await walletService.grantLevels(userId, skin.level_bonus, client);
+      } else if (skin.exp_bonus > 0) {
         expResult = await walletService.changeExp(
           userId, skin.exp_bonus,
           TRANSACTION_TYPES.SKIN_PURCHASE, `Бонус за покупку образа: ${skin.name}`, purchaseId, client
@@ -70,7 +74,8 @@ class SkinService {
       return {
         skinId,
         newFoxesBalance: foxResult.newBalance,
-        expBonus: skin.exp_bonus,
+        levelBonus: skin.level_bonus > 0 ? skin.level_bonus : 0,
+        expBonus: skin.level_bonus > 0 ? 0 : skin.exp_bonus,
         newExp: expResult?.newExp,
         leveledUp: expResult?.leveledUp,
         newLevel: expResult?.newLevel,

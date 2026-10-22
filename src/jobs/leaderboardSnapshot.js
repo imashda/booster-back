@@ -15,10 +15,10 @@ const schedule = () =>
 
       await db.query(`
         INSERT INTO leaderboard_snapshots (id, user_id, month, rank, exp_earned)
-        SELECT uuid_generate_v4(), id, $1, RANK() OVER (ORDER BY exp DESC), exp
+        SELECT uuid_generate_v4(), id, $1, RANK() OVER (ORDER BY level DESC, exp DESC), exp
         FROM users
         WHERE status = 'active' AND role = 'student'
-        ORDER BY exp DESC
+        ORDER BY level DESC, exp DESC
         LIMIT 100
         ON CONFLICT (user_id, month) DO NOTHING
       `, [monthStr]);
