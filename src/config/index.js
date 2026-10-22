@@ -41,6 +41,14 @@ const config = {
     quizWrongExpReward: parseInt(process.env.QUIZ_WRONG_EXP_REWARD, 10) || 10,
     dailyGameFoxLimit: parseInt(process.env.DAILY_GAMES_FOX_LIMIT, 10) || 100,
   },
+  leaderboard: {
+    // Награда за места в месячном рейтинге — прибавка к уровню, через запятую по местам:
+    // "5,3,2" = 1 место +5, 2 место +3, 3 место +2. Пусто — наград нет.
+    rewardLevels: (process.env.LEADERBOARD_REWARD_LEVELS || '')
+      .split(',')
+      .map((v) => parseInt(v.trim(), 10))
+      .filter((v) => Number.isInteger(v) && v > 0),
+  },
   cron: {
     // Тот же пояс, что и у «сегодня» в игровой логике (см. shared/time.js).
     // Раньше здесь был Asia/Almaty: в старых базах tzdata это UTC+6, и cron

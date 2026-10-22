@@ -384,6 +384,29 @@ CREATE TABLE IF NOT EXISTS leaderboard_snapshots (
 
 CREATE INDEX IF NOT EXISTS idx_leaderboard_month ON leaderboard_snapshots(month, rank);
 
+-- МЕСЯЧНЫЙ ЛИДЕРБОРД: рейтинг строится 1-го числа по тому, сколько уровней
+-- каждый набрал за прошлый месяц, и весь месяц не меняется (см. jobs/leaderboardSnapshot.js).
+-- Уровень на начало каждого месяца — точка отсчёта для «набрал за месяц».
+CREATE TABLE IF NOT EXISTS leaderboard_month_start (
+  user_id     UUID NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+  month       DATE NOT NULL,               -- первый день месяца
+  level_start INTEGER NOT NULL,
+  PRIMARY KEY (user_id, month)
+);
+
+-- Один рейтинг на месяц: строка ставится в той же транзакции, что снимок и награды,
+-- поэтому повторный запуск (рестарт сервера, догоняющий запуск) ничего не задвоит.
+CREATE TABLE IF NOT EXISTS leaderboard_runs (
+  month        DATE PRIMARY KEY,           -- месяц, ЗА который построен рейтинг
+  participants INTEGER NOT NULL DEFAULT 0,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS levels_gained INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS level_start INTEGER;
+ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS level_end INTEGER;
+ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS reward_levels INTEGER NOT NULL DEFAULT 0;
+
 -- ============================================================
 -- HOUSE LEVELS (Уровни домов 1–50)
 -- ============================================================

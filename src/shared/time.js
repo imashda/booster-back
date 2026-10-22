@@ -28,4 +28,16 @@ function localDate(now = new Date(), timeZone = APP_TIMEZONE) {
   return formatterFor(timeZone).format(now);
 }
 
-module.exports = { APP_TIMEZONE, localDate };
+/** Первый день текущего месяца 'YYYY-MM-01' в часовом поясе приложения. */
+function localMonth(now = new Date(), timeZone = APP_TIMEZONE) {
+  return `${localDate(now, timeZone).slice(0, 7)}-01`;
+}
+
+/** Сдвиг месяца: shiftMonth('2026-01-01', -1) -> '2025-12-01'. */
+function shiftMonth(month, delta) {
+  const [y, m] = month.split('-').map(Number);
+  const d = new Date(Date.UTC(y, m - 1 + delta, 1));
+  return d.toISOString().slice(0, 10);
+}
+
+module.exports = { APP_TIMEZONE, localDate, localMonth, shiftMonth };

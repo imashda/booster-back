@@ -6,16 +6,38 @@ const walletRepo = require('../repositories/WalletRepository');
 const walletService = require('./WalletService');
 const { NotFoundError, BadRequestError } = require('../domain/errors');
 const { TRANSACTION_TYPES } = require('../constants');
+const leaderboardRepo = require('../repositories/LeaderboardRepository');
+const config = require('../config');
+const { localMonth, shiftMonth } = require('../shared/time');
 
 class LeaderboardService {
+  /**
+   * Месячный рейтинг: снимок, построенный 1-го числа по уровням, набранным за
+   * прошлый месяц (см. jobs/leaderboardSnapshot.js). До следующего 1-го не меняется.
+   * Плюс личный прогресс в текущем месяце — «в этом месяце +N», чтобы было видно,
+   * что идёт в следующий рейтинг.
+   */
   async getLeaderboard(userId) {
-    const [leaderboard, myRank, me] = await Promise.all([
-      userRepo.findForLeaderboard(),
-      userRepo.findRank(userId),
+    const currentMonth = localMonth();
+    const [month, me, monthStart] = await Promise.all([
+      leaderboardRepo.findLatestMonth(),
       userRepo.findPublicById(userId),
+      leaderboardRepo.findMonthStart(userId, currentMonth),
     ]);
+    const [leaderboard, mine] = month
+      ? await Promise.all([leaderboardRepo.findBoard(month), leaderboardRepo.findMine(month, userId)])
+      : [[], null];
 
-    return { leaderboard, myRank, me };
+    return {
+      month,                                   // за какой месяц рейтинг ('2026-10-01'), null — ещё не было
+      nextUpdate: shiftMonth(currentMonth, 1), // когда выйдет следующий
+      leaderboard,
+      myRank: mine?.rank ?? null,
+      mine,
+      me,
+      currentMonthGained: me ? Math.max(0, me.level - (monthStart ?? 1)) : 0,
+      rewardLevels: config.leaderboard.rewardLevels,
+    };
   }
 
   async getAllHouseLevels() {
