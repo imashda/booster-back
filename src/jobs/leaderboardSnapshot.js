@@ -7,6 +7,8 @@ const logger = require('../shared/logger');
 const { localMonth, shiftMonth } = require('../shared/time');
 const leaderboardRepo = require('../repositories/LeaderboardRepository');
 const walletService = require('../services/WalletService');
+const skinRepo = require('../repositories/SkinRepository');
+const { TRANSACTION_TYPES } = require('../constants');
 
 /**
  * МЕСЯЧНЫЙ ЛИДЕРБОРД.
@@ -14,8 +16,9 @@ const walletService = require('../services/WalletService');
  * 1-го числа (00:01 по времени учеников) подводим прошлый месяц:
  *   1. рейтинг — сколько уровней каждый набрал за месяц (не общий уровень);
  *   2. точка отсчёта нового месяца — уровни на этот момент, ДО наград;
- *   3. награды за места (config.leaderboard.rewardLevels) — прибавка к уровню.
- *      Начислены после отсчёта, значит засчитаются в рейтинг следующего месяца.
+ *   3. награды за места (config.leaderboard.rewards): редкий образ, Фоксы,
+ *      прибавка к уровню. Начислены после отсчёта — уровни из награды
+ *      засчитаются в рейтинг следующего месяца.
  * Весь месяц рейтинг не меняется — GET /leaderboard отдаёт этот снимок.
  *
  * Всё в одной транзакции со строкой leaderboard_runs: повторный запуск или
@@ -47,13 +50,27 @@ async function closeMonth(now = new Date()) {
 
     await leaderboardRepo.ensureMonthStart(client, currentMonth);
 
-    const rewards = config.leaderboard.rewardLevels;
+    const rewards = config.leaderboard.rewards;
     let rewarded = 0;
     for (const row of standings) {
-      const levels = rewards[row.rank - 1];
-      if (!levels) continue;
-      await walletService.grantLevels(row.user_id, levels, client);
-      await leaderboardRepo.setReward(client, row.user_id, month, levels);
+      const reward = rewards.find((r) => r.place === row.rank);
+      if (!reward) continue;
+      const description = `Награда за ${row.rank} место в рейтинге за ${month.slice(0, 7)}`;
+      let skinId = null;
+      if (reward.skinSlug) {
+        const skin = await skinRepo.findActiveBySlug(reward.skinSlug, client);
+        if (skin) {
+          // Уже куплен — образ не трогаем, остальная награда начисляется как обычно
+          if (await skinRepo.grant(client, row.user_id, skin.id)) skinId = skin.id;
+        } else {
+          logger.warn('[Job] Leaderboard reward skin not found', { slug: reward.skinSlug });
+        }
+      }
+      if (reward.foxes) {
+        await walletService.changeFoxes(row.user_id, reward.foxes, TRANSACTION_TYPES.LEADERBOARD_REWARD, description, null, client);
+      }
+      if (reward.levels) await walletService.grantLevels(row.user_id, reward.levels, client);
+      await leaderboardRepo.setReward(client, row.user_id, month, { levels: reward.levels || 0, foxes: reward.foxes || 0, skinId });
       rewarded += 1;
     }
 

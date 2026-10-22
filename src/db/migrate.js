@@ -406,6 +406,9 @@ ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS levels_gained INTEGER
 ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS level_start INTEGER;
 ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS level_end INTEGER;
 ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS reward_levels INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS reward_foxes INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE leaderboard_snapshots ADD COLUMN IF NOT EXISTS reward_skin_id UUID REFERENCES skins(id);
+
 
 -- ============================================================
 -- HOUSE LEVELS (Уровни домов 1–50)

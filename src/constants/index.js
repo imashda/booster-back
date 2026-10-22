@@ -19,6 +19,7 @@ const TRANSACTION_TYPES = Object.freeze({
   HOUSE_LEVEL_PURCHASE: 'house_level_purchase',
   ADMIN_GRANT: 'admin_grant',
   ENTRY_BONUS: 'entry_bonus',
+  LEADERBOARD_REWARD: 'leaderboard_reward',
 });
 
 const SHOP_ORDER_STATUSES = Object.freeze({

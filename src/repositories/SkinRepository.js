@@ -57,6 +57,20 @@ class SkinRepository {
     );
   }
 
+  async findActiveBySlug(slug, client = db) {
+    const { rows } = await client.query('SELECT * FROM skins WHERE slug = $1 AND is_active = true', [slug]);
+    return rows[0] ?? null;
+  }
+
+  /** Выдать образ без покупки (награда). Уже есть — ничего не делаем; true — выдан сейчас */
+  async grant(client, userId, skinId) {
+    const { rowCount } = await client.query(
+      'INSERT INTO user_skins (user_id, skin_id) VALUES ($1, $2) ON CONFLICT (user_id, skin_id) DO NOTHING',
+      [userId, skinId]
+    );
+    return rowCount === 1;
+  }
+
   // skinId = null снимает текущий образ (ничего не надето).
   async equip(userId, skinId) {
     await db.query('UPDATE users SET equipped_skin_id = $1 WHERE id = $2', [skinId, userId]);

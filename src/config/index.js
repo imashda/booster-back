@@ -42,12 +42,14 @@ const config = {
     dailyGameFoxLimit: parseInt(process.env.DAILY_GAMES_FOX_LIMIT, 10) || 100,
   },
   leaderboard: {
-    // Награда за места в месячном рейтинге — прибавка к уровню, через запятую по местам:
-    // "5,3,2" = 1 место +5, 2 место +3, 3 место +2. Пусто — наград нет.
-    rewardLevels: (process.env.LEADERBOARD_REWARD_LEVELS || '')
-      .split(',')
-      .map((v) => parseInt(v.trim(), 10))
-      .filter((v) => Number.isInteger(v) && v > 0),
+    // Награды за места месячного рейтинга (по ТЗ): образ «Королевский» (Фокс с
+    // короной, skins.slug = 'set_2' — тот же, что продаётся в гардеробе; если уже
+    // куплен, повторно не выдаётся), Фоксы и прибавка к уровню.
+    rewards: [
+      { place: 1, skinSlug: 'set_2', foxes: 5000, levels: 5 },
+      { place: 2, skinSlug: 'set_2', foxes: 4000, levels: 4 },
+      { place: 3, skinSlug: 'set_2', foxes: 3000, levels: 3 },
+    ],
   },
   cron: {
     // Тот же пояс, что и у «сегодня» в игровой логике (см. shared/time.js).

@@ -72,10 +72,11 @@ class LeaderboardRepository {
     return rows;
   }
 
-  async setReward(client, userId, month, levels) {
+  async setReward(client, userId, month, { levels = 0, foxes = 0, skinId = null }) {
     await client.query(
-      'UPDATE leaderboard_snapshots SET reward_levels = $3 WHERE user_id = $1 AND month = $2',
-      [userId, month, levels]
+      `UPDATE leaderboard_snapshots SET reward_levels = $3, reward_foxes = $4, reward_skin_id = $5
+       WHERE user_id = $1 AND month = $2`,
+      [userId, month, levels, foxes, skinId]
     );
   }
 
@@ -90,7 +91,8 @@ class LeaderboardRepository {
   async findBoard(month) {
     const { rows } = await db.query(
       `SELECT u.id, u.full_name, u.grade, u.avatar_url,
-              ls.rank, ls.levels_gained, ls.level_start, ls.level_end, ls.reward_levels
+              ls.rank, ls.levels_gained, ls.level_start, ls.level_end, ls.reward_levels, ls.reward_foxes,
+              (ls.reward_skin_id IS NOT NULL) AS reward_skin
        FROM leaderboard_snapshots ls
        JOIN users u ON u.id = ls.user_id
        WHERE ls.month = $1
@@ -103,7 +105,8 @@ class LeaderboardRepository {
 
   async findMine(month, userId) {
     const { rows } = await db.query(
-      `SELECT rank, levels_gained, level_start, level_end, reward_levels
+      `SELECT rank, levels_gained, level_start, level_end, reward_levels, reward_foxes,
+              (reward_skin_id IS NOT NULL) AS reward_skin
        FROM leaderboard_snapshots WHERE month = $1 AND user_id = $2`,
       [month, userId]
     );

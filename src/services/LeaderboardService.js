@@ -36,7 +36,7 @@ class LeaderboardService {
       mine,
       me,
       currentMonthGained: me ? Math.max(0, me.level - (monthStart ?? 1)) : 0,
-      rewardLevels: config.leaderboard.rewardLevels,
+      rewards: config.leaderboard.rewards.map(({ place, foxes, levels, skinSlug }) => ({ place, foxes, levels, skin: Boolean(skinSlug) })),
     };
   }
 
