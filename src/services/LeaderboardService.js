@@ -24,9 +24,13 @@ class LeaderboardService {
       userRepo.findPublicById(userId),
       leaderboardRepo.findMonthStart(userId, currentMonth),
     ]);
-    const [leaderboard, mine] = month
-      ? await Promise.all([leaderboardRepo.findBoard(month), leaderboardRepo.findMine(month, userId)])
-      : [[], null];
+    const [leaderboard, mine, totalRanked] = month
+      ? await Promise.all([
+          leaderboardRepo.findBoard(month),
+          leaderboardRepo.findMine(month, userId),
+          leaderboardRepo.countBoard(month),
+        ])
+      : [[], null, 0];
 
     return {
       month,                                   // за какой месяц рейтинг ('2026-10-01'), null — ещё не было
@@ -34,6 +38,7 @@ class LeaderboardService {
       leaderboard,
       myRank: mine?.rank ?? null,
       mine,
+      totalRanked,                             // сколько учеников всего получили место
       me,
       currentMonthGained: me ? Math.max(0, me.level - (monthStart ?? 1)) : 0,
       rewards: config.leaderboard.rewards.map(({ place, foxes, levels, skinSlug }) => ({ place, foxes, levels, skin: Boolean(skinSlug) })),

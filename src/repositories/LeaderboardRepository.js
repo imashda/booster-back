@@ -47,7 +47,8 @@ class LeaderboardRepository {
 
   /**
    * Снимок рейтинга за месяц: сколько уровней набрал каждый (уровень сейчас минус
-   * уровень на начало месяца). В рейтинг попадают только те, кто вырос хотя бы на 1.
+   * уровень на начало месяца). Место получают ВСЕ ученики — даже с +0, чтобы каждый
+   * видел, где он; в Топ-100 на экране показываются только выросшие (findBoard).
    * Без строки отсчёта (зарегистрировался в том месяце) — считаем от 1-го уровня.
    */
   async insertSnapshot(client, month, nextMonth) {
@@ -55,7 +56,7 @@ class LeaderboardRepository {
       `WITH progress AS (
          SELECT u.id AS user_id, u.level AS level_end,
                 COALESCE(s.level_start, 1) AS level_start,
-                u.level - COALESCE(s.level_start, 1) AS gained
+                GREATEST(0, u.level - COALESCE(s.level_start, 1)) AS gained
          FROM users u
          LEFT JOIN leaderboard_month_start s ON s.user_id = u.id AND s.month = $1
          WHERE u.status = 'active' AND u.role = 'student'
@@ -64,7 +65,6 @@ class LeaderboardRepository {
        INSERT INTO leaderboard_snapshots (user_id, month, rank, exp_earned, levels_gained, level_start, level_end)
        SELECT user_id, $1, RANK() OVER (ORDER BY gained DESC), 0, gained, level_start, level_end
        FROM progress
-       WHERE gained > 0
        ON CONFLICT (user_id, month) DO NOTHING
        RETURNING user_id, rank, levels_gained`,
       [month, nextMonth]
@@ -95,12 +95,18 @@ class LeaderboardRepository {
               (ls.reward_skin_id IS NOT NULL) AS reward_skin
        FROM leaderboard_snapshots ls
        JOIN users u ON u.id = ls.user_id
-       WHERE ls.month = $1
+       WHERE ls.month = $1 AND ls.levels_gained > 0
        ORDER BY ls.rank, ls.level_end DESC, u.full_name
        LIMIT 100`,
       [month]
     );
     return rows;
+  }
+
+  /** Сколько учеников в рейтинге за месяц (для «место N из M») */
+  async countBoard(month) {
+    const { rows } = await db.query('SELECT COUNT(*)::int AS n FROM leaderboard_snapshots WHERE month = $1', [month]);
+    return rows[0].n;
   }
 
   async findMine(month, userId) {

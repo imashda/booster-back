@@ -46,13 +46,15 @@ async function closeMonth(now = new Date()) {
     const standings = hasBaseline
       ? await leaderboardRepo.insertSnapshot(client, month, currentMonth)
       : [];
-    await leaderboardRepo.setRunParticipants(client, month, standings.length);
+    const grew = standings.filter((r) => r.levels_gained > 0);
+    await leaderboardRepo.setRunParticipants(client, month, grew.length);
 
     await leaderboardRepo.ensureMonthStart(client, currentMonth);
 
     const rewards = config.leaderboard.rewards;
     let rewarded = 0;
-    for (const row of standings) {
+    // Награда — только тем, кто за месяц вырос (места с +0 есть у всех, но без подарков)
+    for (const row of grew) {
       const reward = rewards.find((r) => r.place === row.rank);
       if (!reward) continue;
       const description = `Награда за ${row.rank} место в рейтинге за ${month.slice(0, 7)}`;
@@ -75,7 +77,7 @@ async function closeMonth(now = new Date()) {
     }
 
     await client.query('COMMIT');
-    return { month, participants: standings.length, rewarded, baseline: hasBaseline };
+    return { month, ranked: standings.length, participants: grew.length, rewarded, baseline: hasBaseline };
   } catch (err) {
     await client.query('ROLLBACK');
     throw err;
